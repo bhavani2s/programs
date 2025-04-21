@@ -1,0 +1,77 @@
+<?php
+session_start();
+
+if (!isset($_SESSION['teacher_logged_in']) || $_SESSION['teacher_logged_in'] !== true) {
+    header("Location: teacher_login.php");
+    exit;
+}
+
+$teacher_id = $_SESSION['teacher_id'];
+$course = $_GET['course'];
+$year = $_GET['year'];
+
+$servername = "localhost";
+$username_db = "root";
+$password_db = "";
+$dbname = "sai";
+
+$conn = new mysqli($servername, $username_db, $password_db, $dbname);
+
+if ($conn->connect_error) {
+    die("Connection failed: " . $conn->connect_error);
+}
+
+$sql = "SELECT student_id, student_name FROM students WHERE course = '$course' AND year = $year";
+$result = $conn->query($sql);
+
+$students = [];
+if ($result->num_rows > 0) {
+    while ($row = $result->fetch_assoc()) {
+        $students[] = $row;
+    }
+}
+
+$conn->close();
+?>
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Select Students for <?php echo strtoupper($course) . " " . $year . "rd Year"; ?> Assignment</title>
+</head>
+<body>
+    <h2>Select Students for <?php echo strtoupper($course) . " " . $year . "rd Year"; ?> Assignment</h2>
+
+    <form method="post" action="write_assignment_question.php">
+        <input type="hidden" name="course" value="<?php echo $course; ?>">
+        <input type="hidden" name="year" value="<?php echo $year; ?>">
+
+        <?php if (empty($students)): ?>
+            <p>No students found for <?php echo strtoupper($course) . " " . $year . "rd Year"; ?>.</p>
+        <?php else: ?>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Select</th>
+                        <th>Student Name</th>
+                        <th>Student ID</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php foreach ($students as $student): ?>
+                        <tr>
+                            <td><input type="checkbox" name="selected_students[]" value="<?php echo $student['student_id']; ?>"></td>
+                            <td><?php echo $student['student_name']; ?></td>
+                            <td><?php echo $student['student_id']; ?></td>
+                        </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+            <br>
+            <label for="assignment_question">Assignment Question:</label><br>
+            <textarea name="assignment_question" id="assignment_question" rows="5" cols="80" required></textarea><br><br>
+            <button type="submit">Send Assignment to Selected Students</button>
+        <?php endif; ?>
+    </form>
+</body>
+</html>
