@@ -7,11 +7,11 @@ if (!isset($_SESSION['teacher_logged_in']) || $_SESSION['teacher_logged_in'] !==
 }
 
 $teacher_id = $_SESSION['teacher_id'];
-
+$teacher_name = $_SESSION['teacher_name']; 
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
     if (isset($_POST['selected_students']) && !empty($_POST['selected_students']) && isset($_POST['assignment_question']) && !empty($_POST['assignment_question'])) {
         $selected_students = $_POST['selected_students'];
-        $question = $_POST['assignment_question']; // No need to escape here yet
+        $question = $_POST['assignment_question'];
 
         $course = $_POST['course'];
         $year = intval($_POST['year']);
@@ -21,19 +21,18 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $password_db = "";
         $dbname = "sai";
 
-        // Establish the database connection HERE
         $conn = new mysqli($servername, $username_db, $password_db, $dbname);
 
         if ($conn->connect_error) {
             die("Connection failed: " . $conn->connect_error);
         }
 
-        $question = mysqli_real_escape_string($conn, $question); // Now it's safe to escape
+        $question = mysqli_real_escape_string($conn, $question);
 
         $success_count = 0;
         foreach ($selected_students as $student_id) {
             $student_id = mysqli_real_escape_string($conn, $student_id);
-            $sql = "INSERT INTO assignments (teacher_id, student_id, course, year, question) VALUES ('$teacher_id', '$student_id', '$course', '$year', '$question')";
+            $sql = "INSERT INTO assignments (teacher_id, teacher_name, student_id, course, year, question) VALUES ('$teacher_id', '$teacher_name', '$student_id', '$course', '$year', '$question')";
             if ($conn->query($sql) === TRUE) {
                 $success_count++;
             } else {
