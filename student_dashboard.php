@@ -1,5 +1,4 @@
 <?php
-// student_dashboard.php
 session_start();
 
 if (!isset($_SESSION['student_logged_in']) || $_SESSION['student_logged_in'] !== true) {
@@ -9,22 +8,44 @@ if (!isset($_SESSION['student_logged_in']) || $_SESSION['student_logged_in'] !==
 
 $student_id = $_SESSION['student_id'];
 $student_name = $_SESSION['student_name'];
-$student_course = $_SESSION['course']; // Retrieve course from session
-$student_year = $_SESSION['year'];   // Retrieve year from session
+$course = $_SESSION['course'];
+$year = $_SESSION['year'];
 ?>
 
 <!DOCTYPE html>
 <html>
 <head>
     <title>Student Dashboard</title>
+    <style>
+        .navbar {
+            background-color: #f0f0f0;
+            overflow: hidden;
+        }
+
+        .navbar a {
+            float: left;
+            display: block;
+            color: black;
+            text-align: center;
+            padding: 14px 16px;
+            text-decoration: none;
+        }
+
+        .navbar a:hover {
+            background-color: #ddd;
+            color: black;
+        }
+    </style>
 </head>
 <body>
+    <div class="navbar">
+        <a href="student_dashboard.php">Home</a>
+        <a href="#">Write Assignment </a> <a href="received_assignments.php">Received Assignment Questions</a>
+    </div>
+
     <h2>Student Dashboard</h2>
     <p>Welcome, <?php echo $student_name; ?> (Student ID: <?php echo $student_id; ?>)!</p>
-    <?php if (isset($student_course) && isset($student_year)): ?>
-        <p>Course: <?php echo strtoupper($student_course); ?></p>
-        <p>Year: <?php echo $student_year; ?> Year</p>
-    <?php endif; ?>
+    
     <a href="student_logout.php">Logout</a>
 </body>
 </html>
