@@ -1,5 +1,5 @@
 <?php
-// admin_login.php
+
 $servername = "localhost";
 $username_db = "root";
 $password_db = "";
