@@ -1,5 +1,5 @@
 <?php
-// teacher_login.php
+
 session_start();
 
 $servername = "localhost";
@@ -29,7 +29,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         if ($password === $row["password"]) {
             $_SESSION['teacher_logged_in'] = true;
             $_SESSION['teacher_id'] = $row["teacher_id"];
-            $_SESSION['teacher_name'] = $row["teacher_name"]; // Store teacher's name in session
+            $_SESSION['teacher_name'] = $row["teacher_name"]; 
             header("Location: teacher_dashboard.php");
             exit;
         } else {
