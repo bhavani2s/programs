@@ -1,5 +1,5 @@
 <?php
-// student_login.php
+
 session_start();
 
 $servername = "localhost";
@@ -30,8 +30,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             $_SESSION['student_logged_in'] = true;
             $_SESSION['student_id'] = $row["student_id"];
             $_SESSION['student_name'] = $row["student_name"];
-            $_SESSION['course'] = $row["course"]; // Store course in session
-            $_SESSION['year'] = $row["year"];   // Store year in session
+            $_SESSION['course'] = $row["course"]; 
+            $_SESSION['year'] = $row["year"];   
             header("Location: student_dashboard.php");
             exit;
         } else {
