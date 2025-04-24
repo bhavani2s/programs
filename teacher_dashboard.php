@@ -1,4 +1,5 @@
 <?php
+// Filename: teacher_dashboard.php
 session_start();
 
 if (!isset($_SESSION['teacher_logged_in']) || $_SESSION['teacher_logged_in'] !== true) {
@@ -15,7 +16,7 @@ $teacher_name = $_SESSION['teacher_name'];
 <head>
     <title>Teacher Dashboard</title>
     <style>
-        /* Your CSS from the previous teacher_dashboard.php */
+        /* Existing CSS for Assignment Generation (DO NOT MODIFY) */
         .navbar {
             background-color: #f0f0f0;
             overflow: hidden;
@@ -109,13 +110,28 @@ $teacher_name = $_SESSION['teacher_name'];
         .year-link:hover {
             background-color: #ddd;
         }
+
+        /* Style for the View History link (MODIFIED) */
+        .history-link {
+            float: left;
+            display: block;
+            color: black;
+            text-align: center;
+            padding: 14px 16px;
+            text-decoration: none;
+        }
+
+        .history-link:hover {
+            background-color: #ddd;
+            color: black;
+        }
     </style>
 </head>
 <body>
     <div class="navbar">
         <a href="teacher_dashboard.php">Home</a>
         <div class="dropdown">
-            <button class="dropbtn">Assignment Generation</button>
+            <button class="dropbtn">Assignment Question Generation</button>
             <div class="dropdown-content">
                 <div class="course-dropdown">
                     <a href="#">BCA</a>
@@ -160,6 +176,7 @@ $teacher_name = $_SESSION['teacher_name'];
             </div>
         </div>
         <a href="received_assignments.php">Received Assignments</a>
+        <a href="teacher_assignment_history.php" class="history-link">View History</a>
     </div>
 
     <h2>Teacher Dashboard</h2>
