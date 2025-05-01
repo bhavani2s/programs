@@ -403,6 +403,65 @@
       height: 100%;
       pointer-events: none; /* Allow clicks to pass through to the text area */
     }
+
+    /* Design Menu Styles */
+    #design-menu {
+      display: none; /* Initially hidden */
+    }
+
+    #design-menu.toolbar {
+      display: flex;
+    }
+
+    .color-dropdown {
+      position: relative;
+      display: inline-block;
+    }
+
+    .color-dropdown-content {
+      display: none;
+      position: absolute;
+      background-color: #f9f9f9;
+      min-width: 150px;
+      box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.2);
+      z-index: 1;
+      border-radius: 3px;
+      border: 1px solid #ccc;
+      padding: 10px;
+      gap: 5px;
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(20px, 1fr));
+    }
+
+    .color-box {
+      width: 20px;
+      height: 20px;
+      border: 1px solid #ccc;
+      cursor: pointer;
+    }
+
+    .color-dropdown:hover .color-dropdown-content,
+    .color-dropdown-content:hover {
+      display: grid;
+    }
+
+    /* File Upload Button Style in Insert Menu */
+    #insert-upload-button {
+      padding: 8px;
+      border: none;
+      background-color: #eee;
+      cursor: pointer;
+      border-radius: 3px;
+      font-size: 14px;
+    }
+
+    #insert-upload-button:hover {
+      background-color: #ddd;
+    }
+
+    #file-upload {
+      display: none; /* Hide the actual file input */
+    }
   </style>
  </head>
  <body>
@@ -438,7 +497,6 @@
                       <a href="#" onclick="formatText('fontName', 'Bahnschrift')">Bahnschrift</a>
                       <a href="#" onclick="formatText('fontName', 'Bahnschrift Condensed')">Bahnschrift Condensed</a>
                       <a href="#" onclick="formatText('fontName', 'Bahnschrift Light')">Bahnschrift Light</a>
-                      <a href="#" onclick="formatText('fontName', 'Bahnschrift Light Condensed')">Bahnschrift Light Condensed</a>
                       <a href="#" onclick="formatText('fontName', 'Bahnschrift Light SemiCondensed')">Bahnschrift Light SemiCondensed</a>
                       <a href="#" onclick="formatText('fontName', 'Bahnschrift SemiBold')">Bahnschrift SemiBold</a>
                       <a href="#" onclick="formatText('fontName', 'Bahnschrift SemiBold Condensed')">Bahnschrift SemiBold Condensed</a>
@@ -462,7 +520,7 @@
                       <a href="#" onclick="formatText('fontName', 'Georgia')">Georgia</a>
                       <a href="#" onclick="formatText('fontName', 'Gill Sans MT')">Gill Sans MT</a>
                       <a href="#" onclick="formatText('fontName', 'Lucida Sans Unicode')">Lucida Sans Unicode</a>
-                        <a href="#" onclick="formatText('fontName', 'Palatino Linotype')">Palatino Linotype')">Palatino Linotype</a>
+                        <a href="#" onclick="formatText('fontName', 'Palatino Linotype')">Palatino Linotype</a>
                       <a href="#" onclick="formatText('fontName', 'Segoe UI')">Segoe UI</a>
                       <a href="#" onclick="formatText('fontName', 'Tahoma')">Tahoma</a>
                       <a href="#" onclick="formatText('fontName', 'Times New Roman')">Times New Roman</a>
@@ -492,17 +550,40 @@
       </div>
       <button onclick="undoDrawing()">Undo</button>
       <button onclick="redoDrawing()">Redo</button>
-      <button>Graphs</button>
+      <button id="insert-upload-button">+</button>
     </div>
 
 
-    <div id="design-menu" class="toolbar" style="display: none;">
-      Design Menu
+    <div id="design-menu" class="toolbar" style="display: flex;">
+        <div class="dropdown color-dropdown">
+            <button onclick="toggleBackgroundDropdown()">Background</button>
+            <div id="background-color-dropdown" class="color-dropdown-content">
+                <?php
+                $bgColors = ['#f0f0f0', '#e0e0e0', '#d0d0d0', '#c0c0c0', '#ffffff', '#fce5cd', '#fff2cc', '#d9ead3', '#d0e0e3', '#c9daf8'];
+                foreach ($bgColors as $color) {
+                    echo '<div class="color-box" style="background-color: ' . $color . ';" onclick="changeBackgroundColor(\'' . $color . '\')"></div>';
+                }
+                ?>
+            </div>
+        </div>
+        <div class="dropdown color-dropdown">
+            <button onclick="toggleColorDropdown()">Color</button>
+            <div id="text-color-dropdown" class="color-dropdown-content">
+                <?php
+                $textColors = ['#000000', '#333333', '#666666', '#cc0000', '#00cc00', '#0000cc', '#cc9900', '#cc00cc'];
+                foreach ($textColors as $color) {
+                    echo '<div class="color-box" style="background-color: ' . $color . '; border: 1px solid #ccc;" onclick="changeTextColor(\'' . $color . '\')"></div>';
+                }
+                ?>
+            </div>
+        </div>
     </div>
 
     <div id="assignment-text" contenteditable="true" placeholder="Write your assignment here...">
       <svg id="drawing-overlay"></svg>
     </div>
+
+    <input type="file" id="file-upload" multiple accept="image/*, application/pdf, application/msword, application/vnd.openxmlformats-officedocument.wordprocessingml.document" style="display: none;">
 
     <div id="table-modal" class="modal">
       <div class="modal-content">
@@ -529,6 +610,8 @@
     const homeMenu = document.getElementById('home-menu');
     const insertMenu = document.getElementById('insert-menu');
     const designMenu = document.getElementById('design-menu');
+    const insertUploadButton = document.getElementById('insert-upload-button');
+    const fileUpload = document.getElementById('file-upload');
     let isDrawing = false;
     let currentColor = 'black';
     let currentLineWidth = 2;
@@ -537,16 +620,22 @@
     let undoHistory = [];
     let redoHistory = [];
     let isMouseOverDrawingArea = false;
+    const backgroundColorDropdown = document.getElementById('background-color-dropdown');
+    const textColorDropdown = document.getElementById('text-color-dropdown');
 
     // Initially hide all menus except Home
     if (homeMenu) homeMenu.style.display = "flex";
     if (insertMenu) insertMenu.style.display = "none";
     if (designMenu) designMenu.style.display = "none";
+    if (backgroundColorDropdown) backgroundColorDropdown.style.display = "none";
+    if (textColorDropdown) textColorDropdown.style.display = "none";
 
     function showHomeMenu() {
       if (homeMenu) homeMenu.style.display = "flex";
       if (insertMenu) insertMenu.style.display = "none";
       if (designMenu) designMenu.style.display = "none";
+      if (backgroundColorDropdown) backgroundColorDropdown.style.display = "none";
+      if (textColorDropdown) textColorDropdown.style.display = "none";
       const tablePicker = document.getElementById('table-picker');
       if (tablePicker && tablePicker.style.display === 'block') {
         tablePicker.style.display = 'none';
@@ -557,6 +646,8 @@
       if (homeMenu) homeMenu.style.display = "none";
       if (insertMenu) insertMenu.style.display = "flex";
       if (designMenu) designMenu.style.display = "none";
+      if (backgroundColorDropdown) backgroundColorDropdown.style.display = "none";
+      if (textColorDropdown) textColorDropdown.style.display = "none";
       const tablePicker = document.getElementById('table-picker');
       if (tablePicker && tablePicker.style.display === 'block') {
         tablePicker.style.display = 'none';
@@ -797,6 +888,103 @@
         appendSvgPath(pathData.path, pathData.color, pathData.width);
       });
     }
+
+    function toggleBackgroundDropdown() {
+      if (backgroundColorDropdown) {
+        backgroundColorDropdown.style.display = backgroundColorDropdown.style.display === 'grid' ? 'none' : 'grid';
+      }
+      if (textColorDropdown && textColorDropdown.style.display === 'grid') {
+        textColorDropdown.style.display = 'none';
+      }
+    }
+
+    function toggleColorDropdown() {
+      if (textColorDropdown) {
+        textColorDropdown.style.display = textColorDropdown.style.display === 'grid' ? 'none' : 'grid';
+      }
+      if (backgroundColorDropdown && backgroundColorDropdown.style.display === 'grid') {
+        backgroundColorDropdown.style.display = 'none';
+      }
+    }
+
+    function changeBackgroundColor(color) {
+      console.log("changeBackgroundColor called with color:", color);
+      assignmentText.style.backgroundColor = color;
+      if (backgroundColorDropdown) {
+        backgroundColorDropdown.style.display = 'none';
+      }
+    }
+
+    function changeTextColor(color) {
+      console.log("changeTextColor called with color:", color);
+      document.execCommand('styleWithCSS', false, true);
+      document.execCommand('foreColor', false, color);
+      document.execCommand('styleWithCSS', false, false);
+      if (textColorDropdown) {
+        textColorDropdown.style.display = 'none';
+      }
+    }
+
+    insertUploadButton.addEventListener('click', () => {
+      fileUpload.click(); // Trigger the file input click
+    });
+
+    fileUpload.addEventListener('change', (event) => {
+      const files = event.target.files;
+      if (files && files.length > 0) {
+        // Handle the uploaded files here
+        console.log("Selected files:", files);
+        insertFilesIntoEditor(files); // Call a function to display the files in the editor
+        // You would typically upload these files to a server here and then
+        // insert appropriate elements (e.g., <img> tags for images) into the editor.
+        // For this example, we'll just display their names and embed images.
+      }
+      // Reset the file input so that the 'change' event fires even if the same file is selected again
+      fileUpload.value = '';
+    });
+
+    function insertFilesIntoEditor(files) {
+      for (const file of files) {
+        const fileType = file.type;
+        if (fileType.startsWith('image/')) {
+          const reader = new FileReader();
+          reader.onload = (e) => {
+            const img = document.createElement('img');
+            img.src = e.target.result;
+            img.style.maxWidth = '100%'; // Adjust as needed
+            assignmentText.appendChild(img);
+          };
+          reader.readAsDataURL(file);
+        } else if (fileType === 'application/pdf') {
+          const pdfLink = document.createElement('a');
+          pdfLink.href = '#'; // You might want to handle PDF display differently
+          pdfLink.textContent = `Attached PDF: ${file.name}`;
+          assignmentText.appendChild(pdfLink);
+          assignmentText.appendChild(document.createElement('br')); // Add a line break
+        } else if (fileType === 'application/msword' || fileType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
+          const docLink = document.createElement('a');
+          docLink.href = '#'; // You might want to handle Word document display differently
+          docLink.textContent = `Attached Document: ${file.name}`;
+          assignmentText.appendChild(docLink);
+          assignmentText.appendChild(document.createElement('br')); // Add a line break
+        } else {
+          const unknownFile = document.createElement('span');
+          unknownFile.textContent = `Attached File: ${file.name} (Type not directly displayed)`;
+          assignmentText.appendChild(unknownFile);
+          assignmentText.appendChild(document.createElement('br')); // Add a line break
+        }
+      }
+    }
+
+    // Close dropdowns if clicked outside
+    document.addEventListener('click', function(event) {
+      if (backgroundColorDropdown && !event.target.matches('.color-dropdown button') && !backgroundColorDropdown.contains(event.target)) {
+        backgroundColorDropdown.style.display = 'none';
+      }
+      if (textColorDropdown && !event.target.matches('.color-dropdown button') && !textColorDropdown.contains(event.target)) {
+        textColorDropdown.style.display = 'none';
+      }
+    });
   </script>
  </body>
  </html>
