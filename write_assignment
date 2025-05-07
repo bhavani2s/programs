@@ -1,369 +1,344 @@
 <?php
-  session_start();
+session_start();
 
-  if (!isset($_SESSION['student_logged_in']) || $_SESSION['student_logged_in'] !== true) {
+if (!isset($_SESSION['student_logged_in']) || $_SESSION['student_logged_in'] !== true) {
     header("Location: student_login.php");
     exit;
-  }
+}
 
-  $student_id = $_SESSION['student_id'];
-  $student_name = $_SESSION['student_name'];
-  ?>
+$student_id = $_SESSION['student_id'];
+$student_name = $_SESSION['student_name'];
 
- <!DOCTYPE html>
- <html>
- <head>
-  <title>Write Assignment</title>
-  <style>
-    body {
-      overflow-y: scroll;
-      margin: 0;
-      padding: 0;
-    }
+// Fetch assignment details including due date and time
+$assignmentId = isset($_GET['assignment_id']) ? $_GET['assignment_id'] : (isset($_SESSION['assignmentId']) ? $_SESSION['assignmentId'] : 0);
+$_SESSION['assignmentId'] = $assignmentId; //store assignment id
 
-    .editor-container {
-      display: flex;
-      flex-direction: column;
-      width: 80%;
-      margin: 20px auto;
-      border: 1px solid #ccc;
-      padding: 10px;
-      border-radius: 5px;
-      position: relative; /* Make this a positioning context for the overlay SVG */
-    }
+// Assuming you have a database connection
+$conn = mysqli_connect("localhost", "root", "", "sai");
+if (!$conn) {
+    die("Connection failed: " . mysqli_connect_error());
+}
 
-    .menu-bar {
-      display: flex;
-      margin-bottom: 10px;
-      gap: 10px;
-    }
+$sql = "SELECT deadline FROM assignments WHERE assignment_id = $assignmentId";
+$result = mysqli_query($conn, $sql);
 
-    .menu-bar button {
-      padding: 8px 15px;
-      border: none;
-      background-color: #eee;
-      cursor: pointer;
-      border-radius: 3px;
-      font-size: 14px;
-    }
+if ($result && mysqli_num_rows($result) > 0) {
+    $row = mysqli_fetch_assoc($result);
+    $deadline = $row['deadline'];
+    $deadlineTimestamp = strtotime($deadline);
+    $now = time();
+    $isDeadlinePassed = ($now > $deadlineTimestamp);
+} else {
+    $isDeadlinePassed = true; // Default to true to prevent submission if assignment details are not found.
+    echo "Error: Could not retrieve assignment details or assignment does not exist.";
+}
+mysqli_close($conn);
+?>
 
-    .menu-bar button:hover {
-      background-color: #ddd;
-    }
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Write Assignment</title>
+    <style>
+        body {
+            overflow-y: scroll;
+            margin: 0;
+            padding: 0;
+        }
 
-    .dropdown {
-      position: relative;
-      display: inline-block;
-    }
+        .editor-container {
+            display: flex;
+            flex-direction: column;
+            width: 80%;
+            margin: 20px auto;
+            border: 1px solid #ccc;
+            padding: 10px;
+            border-radius: 5px;
+            position: relative;
+        }
 
-    .dropdown-content {
-      display: none;
-      position: absolute;
-      background-color: #f9f9f9;
-      min-width: 180px;
-      max-height: 200px;
-      overflow-y: auto;
-      box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.2);
-      z-index: 1;
-      border-radius: 3px;
-      border: 1px solid #ccc;
-    }
+        .menu-bar {
+            display: flex;
+            margin-bottom: 10px;
+            gap: 10px;
+        }
 
-    .dropdown-content a {
-      color: black;
-      padding: 12px 16px;
-      text-decoration: none;
-      display: block;
-      font-size: 14px;
-    }
+        .menu-bar button {
+            padding: 8px 15px;
+            border: none;
+            background-color: #eee;
+            cursor: pointer;
+            border-radius: 3px;
+            font-size: 14px;
+        }
 
-    .dropdown-content a:hover {
-      background-color: #ddd;
-    }
+        .menu-bar button:hover {
+            background-color: #ddd;
+        }
 
-    .dropdown:hover .dropdown-content {
-      display: block;
-    }
+        .toolbar {
+            display: none; /* Initially hidden */
+            margin-bottom: 10px;
+            gap: 5px;
+        }
 
-    .toolbar {
-      display: flex;
-      margin-bottom: 10px;
-      gap: 5px;
-    }
+        .toolbar button {
+            padding: 8px 15px;
+            border: none;
+            background-color: #eee;
+            cursor: pointer;
+            border-radius: 3px;
+            font-size: 14px;
+        }
 
-    .toolbar button {
-      padding: 8px;
-      border: none;
-      background-color: #eee;
-      cursor: pointer;
-      border-radius: 3px;
-      font-size: 14px;
-    }
+        .toolbar button:hover {
+            background-color: #ddd;
+        }
 
-    .toolbar button:hover {
-      background-color: #ddd;
-    }
+        .dropdown {
+            position: relative;
+            display: inline-block;
+        }
 
-    #assignment-text {
-      flex: 6;
-      padding: 10px;
-      border: 1px solid #ddd;
-      border-radius: 5px;
-      font-size: 14px;
-      line-height: 1.5;
-      min-height: 300px;
-      overflow-y: scroll;
-      max-height: 500px;
-      position: relative;
-      white-space: pre-wrap; /* Add this */
-      word-break: break-word;
-      margin-bottom: 10px; /* Add some space below the text area */
-      cursor: text; /* Default cursor */
-      font-family: Arial, sans-serif; /* Add your desired font family here */
-    }
+        .dropdown-content {
+            display: none;
+            position: absolute;
+            background-color: #f9f9f9;
+            min-width: 180px;
+            max-height: 200px;
+            overflow-y: auto; /* Enable vertical scrolling */
+            box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.2);
+            z-index: 1;
+            border-radius: 3px;
+            border: 1px solid #ccc;
+        }
 
-    #assignment-text:empty:before {
-      content: attr(placeholder);
-      color: #ccc;
-    }
+        .dropdown-content a {
+            color: black;
+            padding: 12px 16px;
+            text-decoration: none;
+            display: block;
+            font-size: 14px;
+        }
 
-    .strikethrough-icon {
-      position: relative;
-      display: inline-block;
-      width: 16px;
-      height: 16px;
-    }
+        .dropdown-content a:hover {
+            background-color: #ddd;
+        }
 
-    .strikethrough-icon::before {
-      content: "";
-      position: absolute;
-      top: 50%;
-      left: 0;
-      right: 0;
-      height: 1px;
-      background-color: black;
-      transform: translateY(-50%);
-    }
-    #table-picker {
-      position: absolute;
-      top: 100%;
-      left: 0;
-      background-color: #fff;
-      border: 1px solid #ccc;
-      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
-      display: none;
-      z-index: 2;
-    }
+        .dropdown:hover .dropdown-content {
+            display: block;
+        }
 
-    #table-picker td {
-      width: 20px;
-      height: 20px;
-      border: 1px solid #ddd;
-      padding: 0;
-      cursor: pointer;
-      background-color: #fff;
-    }
+        .text-editor {
+            flex: 1;
+            border: 1px solid #ddd;
+            padding: 10px;
+            overflow-y: auto;
+            resize: none;
+            min-height: 200px;
+            border-radius: 5px;
+            font-size: 16px;
+            line-height: 1.5;
+            position: relative; /* For positioning delete button */
+        }
 
-    #table-picker td:hover {
-      background-color: #f0f0f0;
-    }
-    #insert-menu {
-      position: relative;
-      display: flex; /* Make it visible */
-    }
+        #next-button {
+            margin-top: 20px;
+            padding: 10px 20px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 18px;
+            align-self: center;
+            width: 200px;
+        }
 
-    /* Modal Styles */
-    .modal {
-      display: none;
-      position: fixed;
-      z-index: 1000;
-      left: 0;
-      top: 0;
-      width: 100%;
-      height: 100%;
-      overflow: auto;
-      background-color: rgba(0,0,0,0.5);
-    }
+        #next-button:hover {
+            background-color: #0056b3;
+        }
 
-    .modal-content {
-      background-color: #fefefe;
-      margin: 10% auto;
-      padding: 20px;
-      border: 1px solid #888;
-      width: 300px;
-      border-radius: 5px;
-      box-shadow: 0 4px 8px rgba(0,0,0,0.2);
-      position: relative;
-    }
+        .error-message {
+            color: red;
+            text-align: center;
+            font-size: 18px;
+            margin-top: 20px;
+        }
 
-    .modal-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 15px;
-      border-bottom: 1px solid #ddd;
-      padding-bottom: 10px;
-    }
+        .modal {
+            display: none; /* Hidden by default */
+            position: fixed; /* Stay in place */
+            z-index: 1; /* Sit on top */
+            left: 0;
+            top: 0;
+            width: 100%; /* Full width */
+            height: 100%; /* Full height */
+            overflow: auto; /* Enable scroll if needed */
+            background-color: rgba(0,0,0,0.4); /* Black w/ opacity */
+        }
 
-    .modal-header h2 {
-      margin: 0;
-      font-size: 18px;
-    }
+        .modal-content {
+            background-color: #fefefe;
+            margin: 15% auto; /* 15% from the top and centered */
+            padding: 20px;
+            border: 1px solid #888;
+            width: 30%; /* Could be more or less, depending on screen size */
+            border-radius: 5px;
+        }
 
-    .close-button {
-      position: absolute;
-      top: 10px;
-      right: 10px;
-      color: #aaa;
-      font-size: 28px;
-      font-weight: bold;
-      cursor: pointer;
-    }
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
 
-    .close-button:hover,
-    .close-button:focus {
-      color: #000;
-      text-decoration: none;
-    }
+        .close-button {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+        }
 
+        .close-button:hover,
+        .close-button:focus {
+            color: black;
+            text-decoration: none;
+            cursor: pointer;
+        }
 
-    .modal-body {
-      margin-bottom: 15px;
-    }
+        .modal-body label {
+            display: block;
+            margin-bottom: 5px;
+            font-size: 16px;
+        }
 
-    .modal-body label {
-      display: block;
-      margin-bottom: 5px;
-      font-size: 14px;
-    }
+        .modal-body input[type=number] {
+            width: 80px;
+            padding: 8px;
+            margin-bottom: 10px;
+            border: 1px solid #ccc;
+            border-radius: 3px;
+            font-size: 16px;
+        }
 
-    .modal-body input {
-      width: 100%;
-      padding: 8px 10px;
-      border: 1px solid #ddd;
-      border-radius: 3px;
-      box-sizing: border-box;
-      font-size: 14px;
-    }
+        .modal-footer {
+            text-align: right;
+        }
 
-    .modal-footer {
-      text-align: right;
-    }
+        .modal-footer button {
+            padding: 10px 20px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+        }
 
-    .modal-footer button {
-      padding: 8px 15px;
-      border: none;
-      background-color: #4CAF50;
-      color: white;
-      border-radius: 3px;
-      cursor: pointer;
-      font-size: 14px;
-    }
+        .modal-footer button:hover {
+            background-color: #0056b3;
+        }
 
-    .modal-footer button:hover {
-      background-color: #367c39;
-    }
-    .modal-footer button:disabled{
-      background-color: #cccccc;
-      color: #666666;
-      cursor: not-allowed;
-    }
+        .table-controls {
+            position: absolute;
+            top: -30px; /* Adjust as needed */
+            left: 10px;
+        }
 
-    /* Table Styles */
-    #assignment-text table {
-      width: 100%;
-      border-collapse: collapse;
-      border: 1px solid black;
-      margin-bottom: 20px;
-      table-layout: fixed;
-      position: relative; /* Make sure the table is a positioning context */
-    }
+        .delete-table-button {
+            background: none;
+            border: none;
+            color: red;
+            font-size: 20px;
+            cursor: pointer;
+            padding: 0;
+            margin-left: 10px;
+            line-height: 1;
+        }
 
-    #assignment-text table td,
-    #assignment-text table th {
-      border: 1px solid black;
-      padding: 8px;
-      word-break: break-word;
-    }
+        .delete-table-button:hover {
+            color: darkred;
+        }
 
-    #assignment-text table th {
-      background-color: #f0f0f0;
-    }
+        .custom-table {
+            width: 100%;
+            border-collapse: collapse;
+            border: 1px solid black;
+            margin-bottom: 10px;
+            table-layout: fixed; /* Prevent content from overflowing */
+        }
 
-    /* Table Controls */
-    .table-controls {
-      display: flex;
-      gap: 10px;
-      padding: 5px;
-      background-color: rgba(255, 255, 255, 0.7);
-      border-radius: 5px;
-      z-index: 10;
-      position: relative;
-      top: -25px;
-      margin-bottom: -20px;
-    }
+        .custom-table td, .custom-table th {
+            border: 1px solid black;
+            padding: 8px;
+            word-break: break-word; /* Break long words */
+        }
+        .modal-body label {
+            display: inline-block; /* Display labels inline with inputs */
+            width: 60px; /* Adjust width as needed */
+            margin-right: 10px;
+            font-size: 14px;
+        }
 
-    #assignment-text table + .table-controls {
-      margin-top: -25px;
-      margin-bottom: -20px;
-    }
+        .modal-body input[type=number] {
+            width: 50px; /* Make input fields smaller */
+            padding: 5px;
+            margin-bottom: 10px;
+            border: 1px solid #ccc;
+            border-radius: 3px;
+            font-size: 14px;
+        }
 
-    .table-controls button {
-      padding: 5px 10px;
-      border: 1px solid #ccc;
-      border-radius: 3px;
-      background-color: #eee;
-      cursor: pointer;
-      font-size: 12px;
-    }
+        .modal-content {
+            background-color: #fefefe;
+            margin: 15% auto;
+            padding: 20px;
+            border: 1px solid #888;
+            width: 300px; /* Set a fixed width for the modal */
+            border-radius: 5px;
+        }
 
-    .table-controls button:hover {
-      background-color: #ddd;
-    }
+        .modal-header h2 {
+            font-size: 18px; /* Smaller heading */
+            margin-bottom: 5px;
+        }
 
-    .delete-table-btn {
-      margin-top: 10px;
-      text-align: center;
-    }
-    .delete-table-btn button{
-      padding: 5px 10px;
-      border: 1px solid #ccc;
-      border-radius: 3px;
-      background-color: #eee;
-      cursor: pointer;
-      font-size: 12px;
-    }
-    .delete-table-btn button:hover {
-      background-color: #ddd;
-    }
+        .modal-footer button {
+            padding: 8px 15px; /* Smaller button */
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .editor-container {
+    display: flex;
+    flex-direction: column;
+    width: 80%;
+    margin: 20px auto;
+    border: 1px solid #ccc;
+    padding: 10px;
+    border-radius: 5px;
+    position: relative;
+    max-height: 80vh; /* Or any other suitable maximum height */
+}
 
-    .selected-row {
-      background-color: rgba(0, 123, 255, 0.1);
-    }
-
-    .selected-column {
-      background-color: rgba(0, 123, 255, 0.1);
-    }
-
-    .delete-table-button {
-      position: absolute;
-      top: 5px;
-      right: 5px;
-      cursor: pointer;
-      font-size: 16px; /* Adjust size as needed */
-      color: #ff0000; /* red */
-      line-height: 0; /* Vertically center the 'x' */
-      padding: 0;   /* Remove extra padding */
-      border: none;
-      background: none;
-    }
-
-    .delete-table-button:hover {
-      color: #cc0000;
-    }
-
-    /* Write Menu and Canvas Styles */
-    #write-menu {
+.text-editor {
+    flex: 1; /* Allows it to grow and take available vertical space */
+    border: 1px solid #ddd;
+    padding: 10px;
+    overflow-y: scroll; /* Always show the vertical scrollbar */
+    resize: none;
+    min-height: 200px;
+    border-radius: 5px;
+    font-size: 16px;
+    line-height: 1.5;
+    position: relative; /* For positioning delete button */
+}
+#write-menu {
       position: relative;
     }
 
@@ -401,144 +376,114 @@
       left: 0;
       width: 100%;
       height: 100%;
-      pointer-events: none; /* Allow clicks to pass through to the text area */
+      pointer-events: none; 
     }
 
-    /* Design Menu Styles */
-    #design-menu {
-      display: none; /* Initially hidden */
-    }
 
-    #design-menu.toolbar {
-      display: flex;
-    }
+/* Optional: Style the scrollbar (for Chrome, Safari, Edge) */
+.text-editor::-webkit-scrollbar {
+    width: 8px; /* Adjust width as needed */
+}
 
-    .color-dropdown {
-      position: relative;
-      display: inline-block;
-    }
+.text-editor::-webkit-scrollbar-track {
+    background: #f1f1f1; /* Scrollbar track color */
+    border-radius: 4px;
+}
 
-    .color-dropdown-content {
-      display: none;
-      position: absolute;
-      background-color: #f9f9f9;
-      min-width: 150px;
-      box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.2);
-      z-index: 1;
-      border-radius: 3px;
-      border: 1px solid #ccc;
-      padding: 10px;
-      gap: 5px;
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(20px, 1fr));
-    }
+.text-editor::-webkit-scrollbar-thumb {
+    background: #888; /* Scrollbar handle color */
+    border-radius: 4px;
+}
 
-    .color-box {
-      width: 20px;
-      height: 20px;
-      border: 1px solid #ccc;
-      cursor: pointer;
-    }
+/* Optional: Style the scrollbar (for Firefox) */
+.text-editor {
+    scrollbar-width: thin; /* other values: auto, none */
+    scrollbar-color: #888 #f1f1f1; /* thumb and track color */
+}
+        
 
-    .color-dropdown:hover .color-dropdown-content,
-    .color-dropdown-content:hover {
-      display: grid;
-    }
-
-    /* File Upload Button Style in Insert Menu */
-    #insert-upload-button {
-      padding: 8px;
-      border: none;
-      background-color: #eee;
-      cursor: pointer;
-      border-radius: 3px;
-      font-size: 14px;
-    }
-
-    #insert-upload-button:hover {
-      background-color: #ddd;
-    }
-
-    #file-upload {
-      display: none; /* Hide the actual file input */
-    }
-  </style>
- </head>
- <body>
-  <div class="editor-container">
-    <div class="menu-bar">
-      <button onclick="showHomeMenu()">Home</button>
-      <button onclick="showInsertMenu()">Insert</button>
-      <button onclick="showDesignMenu()">Design</button>
-    </div>
-
-    <div id="home-menu" class="toolbar" style="display: none;">
-      <div class="dropdown">
-        <button>Text Size</button>
-        <div class="dropdown-content">
-          <a href="#" onclick="formatText('fontSize', '2')">2</a>
-          <a href="#" onclick="formatText('fontSize', '4')">4</a>
-          <a href="#" onclick="formatText('fontSize', '6')">6</a>
-          <a href="#" onclick="formatText('fontSize', '8')">8</a>
+    </style>
+</head>
+<body>
+    <div class="editor-container">
+        <div class="menu-bar">
+            <button onclick="showToolbar('home-toolbar')">Home</button>
+            <button onclick="showToolbar('insert-toolbar')">Insert</button>
+            <button onclick="showToolbar('design-toolbar')">Design</button>
         </div>
-      </div>
-      <div class="dropdown">
-                  <button>Font Style</button>
-                  <div class="dropdown-content">
-                      <a href="#" onclick="formatText('fontName', 'Agency FB')">Agency FB</a>
-                      <a href="#" onclick="formatText('fontName', 'Algerian')">Algerian</a>
-                      <a href="#" onclick="formatText('fontName', 'Aptos')">Aptos</a>
-                      <a href="#" onclick="formatText('fontName', 'Arial')">Arial</a>
-                      <a href="#" onclick="formatText('fontName', 'Arial Black')">Arial Black</a>
-                      <a href="#" onclick="formatText('fontName', 'Aptos Display')">Aptos Display</a>
-                      <a href="#" onclick="formatText('fontName', 'Aptos Narrow')">Aptos Narrow</a>
-                      <a href="#" onclick="formatText('fontName', 'Arial Narrow')">Arial Narrow</a>
-                      <a href="#" onclick="formatText('fontName', 'Arial Rounded MT Bold')">Arial Rounded MT Bold</a>
-                      <a href="#" onclick="formatText('fontName', 'Bahnschrift')">Bahnschrift</a>
-                      <a href="#" onclick="formatText('fontName', 'Bahnschrift Condensed')">Bahnschrift Condensed</a>
-                      <a href="#" onclick="formatText('fontName', 'Bahnschrift Light')">Bahnschrift Light</a>
-                      <a href="#" onclick="formatText('fontName', 'Bahnschrift Light SemiCondensed')">Bahnschrift Light SemiCondensed</a>
-                      <a href="#" onclick="formatText('fontName', 'Bahnschrift SemiBold')">Bahnschrift SemiBold</a>
-                      <a href="#" onclick="formatText('fontName', 'Bahnschrift SemiBold Condensed')">Bahnschrift SemiBold Condensed</a>
-                      <a href="#" onclick="formatText('fontName', 'Bahnschrift SemiBold SemiCondensed')">Bahnschrift SemiBold SemiCondensed</a>
-                      <a href="#" onclick="formatText('fontName', 'Bahnschrift SemiCondensed')">Bahnschrift SemiCondensed</a>
-                      <a href="#" onclick="formatText('fontName', 'Bahnschrift SemiLight')">Bahnschrift SemiLight</a>
-                      <a href="#" onclick="formatText('fontName', 'Bahnschrift SemiLight Condensed')">Bahnschrift SemiLight Condensed</a>
-                      <a href="#" onclick="formatText('fontName', 'Blackadder ITC')">Blackadder ITC</a>
 
-                      <a href="#" onclick="formatText('fontName', 'Calibri')">Calibri</a>
-                      <a href="#" onclick="formatText('fontName', 'Cambria')">Cambria</a>
-                      <a href="#" onclick="formatText('fontName', 'Candara')">Candara</a>
-                      <a href="#" onclick="formatText('fontName', 'Century Gothic')">Century Gothic</a>
-                      <a href="#" onclick="formatText('fontName', 'Comic Sans MS')">Comic Sans MS</a>
-                      <a href="#" onclick="formatText('fontName', 'Constantia')">Constantia</a>
-                      <a href="#" onclick="formatText('fontName', 'Corbel')">Corbel</a>
-                      <a href="#" onclick="formatText('fontName', 'Elephant')">Elephant</a>
+        <div id="home-toolbar" class="toolbar" style="display: none;">
+            <div class="dropdown">
+                <button>Text Size</button>
+                <div class="dropdown-content">
+                    <a href="#" onclick="formatText('fontSize', '2')">2</a>
+                    <a href="#" onclick="formatText('fontSize', '4')">4</a>
+                    <a href="#" onclick="formatText('fontSize', '6')">6</a>
+                    <a href="#" onclick="formatText('fontSize', '8')">8</a>
+                </div>
+            </div>
+            <div class="dropdown">
+                <button>Font Style</button>
+                <div class="dropdown-content" style="overflow-y: auto; max-height: 200px;">
+                    <a href="#" onclick="formatText('fontName', 'Agency FB')">Agency FB</a>
+                    <a href="#" onclick="formatText('fontName', 'Algerian')">Algerian</a>
+                    <a href="#" onclick="formatText('fontName', 'Aptos')">Aptos</a>
+                    <a href="#" onclick="formatText('fontName', 'Arial')">Arial</a>
+                    <a href="#" onclick="formatText('fontName', 'Arial Black')">Arial Black</a>
+                    <a href="#" onclick="formatText('fontName', 'Aptos Display')">Aptos Display</a>
+                    <a href="#" onclick="formatText('fontName', 'Aptos Narrow')">Aptos Narrow</a>
+                    <a href="#" onclick="formatText('fontName', 'Arial Narrow')">Arial Narrow</a>
+                    <a href="#" onclick="formatText('fontName', 'Arial Rounded MT Bold')">Arial Rounded MT Bold</a>
+                    <a href="#" onclick="formatText('fontName', 'Bahnschrift')">Bahnschrift</a>
+                    <a href="#" onclick="formatText('fontName', 'Bahnschrift Condensed')">Bahnschrift Condensed</a>
+                    <a href="#" onclick="formatText('fontName', 'Bahnschrift Light')">Bahnschrift Light</a>
+                    <a href="#" onclick="formatText('fontName', 'Bahnschrift Light SemiCondensed')">Bahnschrift Light SemiCondensed</a>
+                    <a href="#" onclick="formatText('fontName', 'Bahnschrift SemiBold')">Bahnschrift SemiBold</a>
+                    <a href="#" onclick="formatText('fontName', 'Bahnschrift SemiBold Condensed')">Bahnschrift SemiBold Condensed</a>
+                    <a href="#" onclick="formatText('fontName', 'Bahnschrift SemiBold SemiCondensed')">Bahnschrift SemiBold SemiCondensed</a>
+                    <a href="#" onclick="formatText('fontName', 'Bahnschrift SemiCondensed')">Bahnschrift SemiCondensed</a>
+                    <a href="#" onclick="formatText('fontName', 'Bahnschrift SemiLight')">Bahnschrift SemiLight</a>
+                    <a href="#" onclick="formatText('fontName', 'Bahnschrift SemiLight Condensed')">Bahnschrift SemiLight Condensed</a>
+                    <a href="#" onclick="formatText('fontName', 'Blackadder ITC')">Blackadder ITC</a>
+                    <a href="#" onclick="formatText('fontName', 'Calibri')">Calibri</a>
+                    <a href="#" onclick="formatText('fontName', 'Cambria')">Cambria</a>
+                    <a href="#" onclick="formatText('fontName', 'Candara')">Candara</a>
+                    <a href="#" onclick="formatText('fontName', 'Century Gothic')">Century Gothic</a>
+                    <a href="#" onclick="formatText('fontName', 'Comic Sans MS')">Comic Sans MS</a>
+                    <a href="#" onclick="formatText('fontName', 'Constantia')">Constantia</a>
+                    <a href="#" onclick="formatText('fontName', 'Corbel')">Corbel</a>
+                    <a href="#" onclick="formatText('fontName', 'Elephant')">Elephant</a>
+                    <a href="#" onclick="formatText('fontName', 'Franklin Gothic Medium')">Franklin Gothic Medium</a>
+                    <a href="#" onclick="formatText('fontName', 'Garamond')">Garamond</a>
+                    <a href="#" onclick="formatText('fontName', 'Georgia')">Georgia</a>
+                    <a href="#" onclick="formatText('fontName', 'Gill Sans MT')">Gill Sans MT</a>
+                    <a href="#" onclick="formatText('fontName', 'Lucida Sans Unicode')">Lucida Sans Unicode</a>
+                    <a href="#" onclick="formatText('fontName', 'Palatino Linotype')">Palatino Linotype</a>
+                    <a href="#" onclick="formatText('fontName', 'Segoe UI')">Segoe UI</a>
+                    <a href="#" onclick="formatText('fontName', 'Tahoma')">Tahoma</a>
+                    <a href="#" onclick="formatText('fontName', 'Times New Roman')">Times New Roman</a>
+                    <a href="#" onclick="formatText('fontName', 'Trebuchet MS')">Trebuchet MS</a>
+                    <a href="#" onclick="formatText('fontName', 'Verdana')">Verdana</a>
+                </div>
+            </div>
+            <button onclick="formatText('bold')"><b>B</b></button>
+            <button onclick="formatText('italic')"><i>I</i></button>
+            <button onclick="formatText('underline')"><u>U</u></button>
+        </div>
 
-                      <a href="#" onclick="formatText('fontName', 'Franklin Gothic Medium')">Franklin Gothic Medium</a>
-                      <a href="#" onclick="formatText('fontName', 'Garamond')">Garamond</a>
-                      <a href="#" onclick="formatText('fontName', 'Georgia')">Georgia</a>
-                      <a href="#" onclick="formatText('fontName', 'Gill Sans MT')">Gill Sans MT</a>
-                      <a href="#" onclick="formatText('fontName', 'Lucida Sans Unicode')">Lucida Sans Unicode</a>
-                        <a href="#" onclick="formatText('fontName', 'Palatino Linotype')">Palatino Linotype</a>
-                      <a href="#" onclick="formatText('fontName', 'Segoe UI')">Segoe UI</a>
-                      <a href="#" onclick="formatText('fontName', 'Tahoma')">Tahoma</a>
-                      <a href="#" onclick="formatText('fontName', 'Times New Roman')">Times New Roman</a>
-                      <a href="#" onclick="formatText('fontName', 'Trebuchet MS')">Trebuchet MS</a>
-                      <a href="#" onclick="formatText('fontName', 'Verdana')">Verdana</a>
-                  </div>
-              </div>
-      <button onclick="formatText('bold')"><b>B</b></button>
-      <button onclick="formatText('italic')"><i>I</i></button>
-      <button onclick="formatText('underline')"><u>U</u></button>
-      <button onclick="formatText('strikeThrough')"><span class="strikethrough-icon"></span></button>
-      <button onclick="formatText('textShadow', '0px 0px 1px black')">S</button>
-    </div>
-
-    <div id="insert-menu" class="toolbar">
+        <div id="insert-toolbar" class="toolbar">
+            <button id="insert-table-button">Table</button>
+            <button id="write-button">Write</button>
+            <button id="undo-button">Undo</button>
+            <button id="redo-button">Redo</button>
+            <button id="insert-upload-button">+</button>
+        </div>
+        
+        <div id="insert-menu" class="toolbar">
       <button id="insert-table-button">Table</button>
       <div id="table-picker"></div>
       <div id="write-menu" class="dropdown">
+
         <button>Write</button>
         <div id="pen-dropdown-content" class="dropdown-content">
           <a href="#" onclick="enableDrawing('black', 2)">Black Pen</a>
@@ -553,96 +498,82 @@
       <button id="insert-upload-button">+</button>
     </div>
 
+        <div id="design-toolbar" class="toolbar">
+            <button>Design Placeholder</button>
+        </div>
 
-    <div id="design-menu" class="toolbar" style="display: flex;">
-        <div class="dropdown color-dropdown">
-            <button onclick="toggleBackgroundDropdown()">Background</button>
-            <div id="background-color-dropdown" class="color-dropdown-content">
-                <?php
-                $bgColors = ['#f0f0f0', '#e0e0e0', '#d0d0d0', '#c0c0c0', '#ffffff', '#fce5cd', '#fff2cc', '#d9ead3', '#d0e0e3', '#c9daf8'];
-                foreach ($bgColors as $color) {
-                    echo '<div class="color-box" style="background-color: ' . $color . ';" onclick="changeBackgroundColor(\'' . $color . '\')"></div>';
-                }
-                ?>
-            </div>
+        <div class="text-editor" id="assignment-text" contenteditable="true">
+            <p>Write your assignment here...</p>
+            <svg id="drawing-overlay"></svg>
         </div>
-        <div class="dropdown color-dropdown">
-            <button onclick="toggleColorDropdown()">Color</button>
-            <div id="text-color-dropdown" class="color-dropdown-content">
-                <?php
-                $textColors = ['#000000', '#333333', '#666666', '#cc0000', '#00cc00', '#0000cc', '#cc9900', '#cc00cc'];
-                foreach ($textColors as $color) {
-                    echo '<div class="color-box" style="background-color: ' . $color . '; border: 1px solid #ccc;" onclick="changeTextColor(\'' . $color . '\')"></div>';
-                }
-                ?>
-            </div>
-        </div>
+
+        <?php if (!$isDeadlinePassed): ?>
+            <button id="next-button">Next</button>
+        <?php else: ?>
+            <p class="error-message">Sorry, the deadline for this assignment has passed.</p>
+        <?php endif; ?>
     </div>
 
-    <div id="assignment-text" contenteditable="true" placeholder="Write your assignment here...">
-      <svg id="drawing-overlay"></svg>
+    <div id="table-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Insert Table</h2>
+                <span class="close-button">&times;</span>
+            </div>
+            <div class="modal-body">
+                <label for="rows">Rows:</label>
+                <input type="number" id="rows" value="3" min="1">
+                <label for="cols">Columns:</label>
+                <input type="number" id="cols" value="3" min="1">
+            </div>
+            <div class="modal-footer">
+                <button id="insert-table-confirm">Insert</button>
+            </div>
+        </div>
     </div>
 
     <input type="file" id="file-upload" multiple accept="image/*, application/pdf, application/msword, application/vnd.openxmlformats-officedocument.wordprocessingml.document" style="display: none;">
 
-    <div id="table-modal" class="modal">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h2>Insert Table</h2>
-          <span class="close-button">&times;</span>
-        </div>
-        <div class="modal-body">
-          <label for="rows">Rows:</label>
-          <input type="number" id="rows" value="3" min="1">
-          <label for="cols">Columns:</label>
-          <input type="number" id="cols" value="3" min="1">
-        </div>
-        <div class="modal-footer">
-          <button id="insert-table-confirm">Insert</button>
-        </div>
-      </div>
-    </div>
+    <script>
+     
+        const assignmentText = document.getElementById('assignment-text');
+        const drawingOverlay = document.getElementById('drawing-overlay');
+        let nextButton = document.getElementById('next-button');
+        const homeToolbar = document.getElementById('home-toolbar');
+        const insertToolbar = document.getElementById('insert-toolbar');
+        const designToolbar = document.getElementById('design-toolbar');
+        const insertTableButton = document.getElementById('insert-table-button');
+        const writeButton = document.getElementById('write-button');
+        const undoButton = document.getElementById('undo-button');
+        const redoButton = document.getElementById('redo-button');
+        const tableModal = document.getElementById('table-modal');
+        const closeModalButton = document.querySelector('.close-button');
+        const insertTableConfirmButton = document.getElementById('insert-table-confirm');
+        const rowsInput = document.getElementById('rows');
+        const colsInput = document.getElementById('cols');
+        const insertUploadButton = document.getElementById('insert-upload-button');
+        const fileUpload = document.getElementById('file-upload');
+        let isDrawing = false;
+        let currentColor = 'black';
+        let currentLineWidth = 2;
+        let currentPath = [];
+        const drawnPaths = [];
+        let undoHistory = [];
+        let redoHistory = [];
+        let isMouseOverDrawingArea = false;
 
-  </div>
-  <script>
-    const assignmentText = document.getElementById('assignment-text');
-    const drawingOverlay = document.getElementById('drawing-overlay');
-    const homeMenu = document.getElementById('home-menu');
-    const insertMenu = document.getElementById('insert-menu');
-    const designMenu = document.getElementById('design-menu');
-    const insertUploadButton = document.getElementById('insert-upload-button');
-    const fileUpload = document.getElementById('file-upload');
-    let isDrawing = false;
-    let currentColor = 'black';
-    let currentLineWidth = 2;
-    let currentPath = [];
-    const drawnPaths = [];
-    let undoHistory = [];
-    let redoHistory = [];
-    let isMouseOverDrawingArea = false;
-    const backgroundColorDropdown = document.getElementById('background-color-dropdown');
-    const textColorDropdown = document.getElementById('text-color-dropdown');
+        function showToolbar(toolbarId) {
+            homeToolbar.style.display = 'none';
+            insertToolbar.style.display = 'none';
+            designToolbar.style.display = 'none';
 
-    // Initially hide all menus except Home
-    if (homeMenu) homeMenu.style.display = "flex";
-    if (insertMenu) insertMenu.style.display = "none";
-    if (designMenu) designMenu.style.display = "none";
-    if (backgroundColorDropdown) backgroundColorDropdown.style.display = "none";
-    if (textColorDropdown) textColorDropdown.style.display = "none";
-
-    function showHomeMenu() {
-      if (homeMenu) homeMenu.style.display = "flex";
-      if (insertMenu) insertMenu.style.display = "none";
-      if (designMenu) designMenu.style.display = "none";
-      if (backgroundColorDropdown) backgroundColorDropdown.style.display = "none";
-      if (textColorDropdown) textColorDropdown.style.display = "none";
-      const tablePicker = document.getElementById('table-picker');
-      if (tablePicker && tablePicker.style.display === 'block') {
-        tablePicker.style.display = 'none';
-      }
-    }
-
-    function showInsertMenu() {
+            const toolbarToShow = document.getElementById(toolbarId);
+            if (toolbarToShow) {
+                toolbarToShow.style.display = 'flex';
+            }
+        }
+        //#############3
+        function showInsertMenu() {
       if (homeMenu) homeMenu.style.display = "none";
       if (insertMenu) insertMenu.style.display = "flex";
       if (designMenu) designMenu.style.display = "none";
@@ -653,115 +584,122 @@
         tablePicker.style.display = 'none';
       }
     }
-
-    function showDesignMenu() {
-      if (homeMenu) homeMenu.style.display = "none";
-      if (insertMenu) insertMenu.style.display = "none";
-      if (designMenu) designMenu.style.display = "flex";
-      const tablePicker = document.getElementById('table-picker');
-      if (tablePicker && tablePicker.style.display === 'block') {
-        tablePicker.style.display = 'none';
-      }
-    }
-
-    function formatText(command, value = null) {
-      assignmentText.focus();
-      if (command === 'fontSize') {
-        document.execCommand(command, false, value + 'px');
-      } else if (command === 'textShadow') {
-        document.execCommand('styleWithCSS', false, true);
-        document.execCommand(command, false, value);
-        document.execCommand('styleWithCSS', false, false);
-      } else {
-        document.execCommand(command, false, value);
-      }
-      disableDrawing();
-    }
-
-    let selectedRows = 0;
-    let selectedCols = 0;
-    let isTablePickerVisible = false;
-    const tablePicker = document.getElementById('table-picker');
-    const tableModal = document.getElementById('table-modal');
-    const insertTableButton = document.getElementById('insert-table-button');
-    const closeModalButton = document.querySelector('.close-button');
-    const insertTableConfirmButton = document.getElementById('insert-table-confirm');
-    const rowsInput = document.getElementById('rows');
-    const colsInput = document.getElementById('cols');
-
-
-    insertTableButton.addEventListener('click', () => {
-      tableModal.style.display = 'block';
-    });
-
-    closeModalButton.addEventListener('click', () => {
-      tableModal.style.display = 'none';
-    });
-
-    insertTableConfirmButton.addEventListener('click', () => {
-      const rows = parseInt(rowsInput.value);
-      const cols = parseInt(colsInput.value);
-
-      if (rows > 0 && cols > 0) {
-        insertTable(rows, cols);
-        tableModal.style.display = 'none';
-        rowsInput.value = 3;
-        colsInput.value = 3;
-      } else {
-        alert("Please enter valid row and column numbers.");
-      }
-    });
-
-    function insertTable(rows, cols) {
-      console.log("insertTable", rows, cols);
-
-      try {
-        let table = document.createElement('table');
-        table.style.width = "100%";
-        table.style.borderCollapse = "collapse";
-        table.style.border = "1px solid black";
-        table.style.tableLayout = "fixed";
-        table.classList.add('custom-table');
-
-        for (let i = 0; i < rows; i++) {
-          let row = table.insertRow();
-          for (let j = 0; j < cols; j++) {
-            let cell = row.insertCell();
-            cell.style.border = "1px solid black";
-            cell.textContent = "";
-            cell.style.padding = "8px";
-            cell.style.wordBreak = "break-word";
-            cell.style.width = `${100 / cols}%`;
-          }
+//######################
+        function formatText(command, value = null) {
+            assignmentText.focus();
+            document.execCommand(command, false, value);
         }
-        console.log("Table element:", table);
-        assignmentText.appendChild(table);
 
-        const controlsDiv = document.createElement('div');
-        controlsDiv.className = 'table-controls';
-        controlsDiv.innerHTML = ``;
-        table.parentNode.insertBefore(controlsDiv, table);
-
-        const deleteButton = document.createElement('button');
-        deleteButton.className = 'delete-table-button';
-        deleteButton.innerHTML = '&times;';
-        deleteButton.addEventListener('click', function() {
-          table.parentNode.removeChild(table);
+        assignmentText.addEventListener('input', function() {
+            localStorage.setItem('assignmentText', assignmentText.innerHTML);
         });
-        table.parentNode.appendChild(deleteButton);
 
-        if (assignmentText.querySelector('table')) {
-          console.log("Table inserted successfully.");
-        } else {
-          console.error("Table insertion failed: Table element not found.");
+        const savedText = localStorage.getItem('assignmentText');
+        if (savedText) {
+            assignmentText.innerHTML = savedText;
         }
-        disableDrawing();
-      } catch (error) {
-        console.error("Error inserting table:", error);
-      }
-    }
 
-    function enableDrawing(color, lineWidth) {
+        let assignmentId = 0;
+        if (localStorage.getItem('assignmentId')) {
+            assignmentId = localStorage.getItem('assignmentId');
+        } else {
+            const urlParams = new URLSearchParams(window.location.search);
+            assignmentId = urlParams.get('assignment_id');
+            localStorage.setItem('assignmentId', assignmentId);
+        }
+
+        const deadlinePassed = <?php echo json_encode($isDeadlinePassed); ?>;
+
+        window.onload = function() {
+            nextButton = document.getElementById('next-button');
+
+            if (nextButton) {
+                if (!deadlinePassed) {
+                    nextButton.addEventListener('click', function() {
+                        const assignmentContent = assignmentText.innerHTML;
+                        localStorage.setItem('assignmentContent', assignmentContent);
+                        window.location.href = 'select_teacher.php?assignment_id=' + assignmentId;
+                    });
+                } else {
+                    nextButton.style.display = 'none';
+                }
+            }
+
+            // Initially show the Home toolbar AFTER the DOM is fully loaded
+            showToolbar('home-toolbar');
+        };
+
+        // Table insertion functionality
+        insertTableButton.addEventListener('click', () => {
+            tableModal.style.display = 'block';
+        });
+
+        closeModalButton.addEventListener('click', () => {
+            tableModal.style.display = 'none';
+        });
+
+        insertTableConfirmButton.addEventListener('click', () => {
+            const rows = parseInt(rowsInput.value);
+            const cols = parseInt(colsInput.value);
+
+            if (rows > 0 && cols > 0) {
+                insertTable(rows, cols);
+                tableModal.style.display = 'none';
+                rowsInput.value = 3;
+                colsInput.value = 3;
+            } else {
+                alert("Please enter valid row and column numbers.");
+            }
+        });
+
+        function insertTable(rows, cols) {
+            console.log("insertTable", rows, cols);
+
+            try {
+                let table = document.createElement('table');
+                table.style.width = "100%";
+                table.style.borderCollapse = "collapse";
+                table.style.border = "1px solid black";
+                table.style.tableLayout = "fixed";
+                table.classList.add('custom-table');
+                table.style.position = 'relative'; // Make table position relative for absolute positioning of delete button
+
+                for (let i = 0; i < rows; i++) {
+                    let row = table.insertRow();
+                    for (let j = 0; j < cols; j++) {
+                        let cell = row.insertCell();
+                        cell.style.border = "1px solid black";
+                        cell.textContent = "";
+                        cell.style.padding = "8px";
+                        cell.style.wordBreak = "break-word";
+                        cell.style.width = `${100 / cols}%`;
+                    }
+                }
+                console.log("Table element:", table);
+                assignmentText.appendChild(table);
+
+                const deleteButton = document.createElement('button');
+                deleteButton.className = 'delete-table-button';
+                deleteButton.innerHTML = '&times;';
+                deleteButton.style.position = 'absolute';
+                deleteButton.style.top = '-10px'; /* Adjust as needed */
+                deleteButton.style.right = '-10px'; /* Adjust as needed */
+                deleteButton.addEventListener('click', function() {
+                    table.parentNode.removeChild(table);
+                });
+                table.appendChild(deleteButton); // Append delete button to the table itself
+
+                if (assignmentText.querySelector('table')) {
+                    console.log("Table inserted successfully.");
+                } else {
+                    console.error("Table insertion failed: Table element not found.");
+                }
+                disableDrawing();
+            } catch (error) {
+                console.error("Error inserting table:", error);
+            }
+        }
+        function enableDrawing(color, lineWidth) {
       isDrawing = false;
       currentColor = color;
       currentLineWidth = lineWidth;
@@ -907,84 +845,72 @@
       }
     }
 
-    function changeBackgroundColor(color) {
-      console.log("changeBackgroundColor called with color:", color);
-      assignmentText.style.backgroundColor = color;
-      if (backgroundColorDropdown) {
-        backgroundColorDropdown.style.display = 'none';
-      }
-    }
+        // File upload functionality
+        insertUploadButton.addEventListener('click', () => {
+            fileUpload.click();
+        });
 
-    function changeTextColor(color) {
-      console.log("changeTextColor called with color:", color);
-      document.execCommand('styleWithCSS', false, true);
-      document.execCommand('foreColor', false, color);
-      document.execCommand('styleWithCSS', false, false);
-      if (textColorDropdown) {
-        textColorDropdown.style.display = 'none';
-      }
-    }
+        fileUpload.addEventListener('change', (event) => {
+            const files = event.target.files;
+            if (files && files.length > 0) {
+                insertFilesIntoEditor(files);
+            }
+            fileUpload.value = '';
+        });
 
-    insertUploadButton.addEventListener('click', () => {
-      fileUpload.click(); // Trigger the file input click
-    });
+        function insertFilesIntoEditor(files) {
+            for (const file of files) {
+                const fileType = file.type;
+                const fileName = file.name;
+                const fileExtension = fileName.split('.').pop().toLowerCase();
 
-    fileUpload.addEventListener('change', (event) => {
-      const files = event.target.files;
-      if (files && files.length > 0) {
-        // Handle the uploaded files here
-        console.log("Selected files:", files);
-        insertFilesIntoEditor(files); // Call a function to display the files in the editor
-        // You would typically upload these files to a server here and then
-        // insert appropriate elements (e.g., <img> tags for images) into the editor.
-        // For this example, we'll just display their names and embed images.
-      }
-      // Reset the file input so that the 'change' event fires even if the same file is selected again
-      fileUpload.value = '';
-    });
-
-    function insertFilesIntoEditor(files) {
-      for (const file of files) {
-        const fileType = file.type;
-        if (fileType.startsWith('image/')) {
-          const reader = new FileReader();
-          reader.onload = (e) => {
-            const img = document.createElement('img');
-            img.src = e.target.result;
-            img.style.maxWidth = '100%'; // Adjust as needed
-            assignmentText.appendChild(img);
-          };
-          reader.readAsDataURL(file);
-        } else if (fileType === 'application/pdf') {
-          const pdfLink = document.createElement('a');
-          pdfLink.href = '#'; // You might want to handle PDF display differently
-          pdfLink.textContent = `Attached PDF: ${file.name}`;
-          assignmentText.appendChild(pdfLink);
-          assignmentText.appendChild(document.createElement('br')); // Add a line break
-        } else if (fileType === 'application/msword' || fileType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
-          const docLink = document.createElement('a');
-          docLink.href = '#'; // You might want to handle Word document display differently
-          docLink.textContent = `Attached Document: ${file.name}`;
-          assignmentText.appendChild(docLink);
-          assignmentText.appendChild(document.createElement('br')); // Add a line break
-        } else {
-          const unknownFile = document.createElement('span');
-          unknownFile.textContent = `Attached File: ${file.name} (Type not directly displayed)`;
-          assignmentText.appendChild(unknownFile);
-          assignmentText.appendChild(document.createElement('br')); // Add a line break
+                if (fileType.startsWith('image/')) {
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        const img = document.createElement('img');
+                        img.src = e.target.result;
+                        img.style.maxWidth = '100%';
+                        assignmentText.appendChild(img);
+                        localStorage.setItem('assignmentText', assignmentText.innerHTML);
+                    };
+                    reader.readAsDataURL(file);
+                } else if (fileType === 'application/pdf') {
+                    const pdfLink = document.createElement('a');
+                    pdfLink.href = '#';
+                    pdfLink.textContent = `Download PDF: ${fileName}`;
+                    pdfLink.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        alert(`The file "${fileName}" will be downloaded.`);
+                    });
+                    assignmentText.appendChild(pdfLink);
+                    assignmentText.appendChild(document.createElement('br'));
+                    localStorage.setItem('assignmentText', assignmentText.innerHTML);
+                } else if (fileExtension === 'doc' || fileExtension === 'docx') {
+                    const docLink = document.createElement('a');
+                    docLink.href = '#';
+                    docLink.textContent = `Download Document: ${fileName}`;
+                    docLink.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        alert(`The file "${fileName}" will be downloaded.`);
+                    });
+                    assignmentText.appendChild(docLink);
+                    assignmentText.appendChild(document.createElement('br'));
+                    localStorage.setItem('assignmentText', assignmentText.innerHTML);
+                } else {
+                    const otherFileLink = document.createElement('a');
+                    otherFileLink.href = '#';
+                    otherFileLink.textContent = `Download File: ${fileName}`;
+                    otherFileLink.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        alert(`The file "${fileName}" will be downloaded.`);
+                    });
+                    assignmentText.appendChild(otherFileLink);
+                    assignmentText.appendChild(document.createElement('br'));
+                    localStorage.setItem('assignmentText', assignmentText.innerHTML);
+                }
+            }
         }
-      }
-    }
-
-    // Close dropdowns if clicked outside
-    document.addEventListener('click', function(event) {
-      if (backgroundColorDropdown && !event.target.matches('.color-dropdown button') && !backgroundColorDropdown.contains(event.target)) {
-        backgroundColorDropdown.style.display = 'none';
-      }
-      if (textColorDropdown && !event.target.matches('.color-dropdown button') && !textColorDropdown.contains(event.target)) {
-        textColorDropdown.style.display = 'none';
-      }
-    });
-  </script>
- </body>
- </html>
+    
+    </script>
+</body>
+</html>
