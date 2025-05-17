@@ -19,13 +19,11 @@ if ($conn->connect_error) {
     die("Connection failed: " . $conn->connect_error);
 }
 
-// Define all courses
 $all_courses = ['bca', 'bba', 'bcom', 'ba', 'bvoc'];
 
 $selected_course = isset($_GET['course']) ? $_GET['course'] : '';
 $selected_year = isset($_GET['year']) ? intval($_GET['year']) : 0;
 
-// Fetch assignment history if a course and year are selected
 $assignment_history = [];
 if (!empty($selected_course) && $selected_year > 0) {
     $history_sql = "SELECT a.student_id, s.student_name, a.question, a.sent_at 
@@ -56,7 +54,7 @@ $conn->close();
             width: 200px;
             padding: 20px;
             border-right: 1px solid #ddd;
-            position: relative; /* For back button positioning */
+            position: relative; 
         }
         .history-details {
             flex: 1;
