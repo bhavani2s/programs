@@ -7,6 +7,8 @@ if (!isset($_SESSION['teacher_logged_in']) || $_SESSION['teacher_logged_in'] !==
 }
 
 $teacher_id = $_SESSION['teacher_id'];
+$teacher_name = $_SESSION['teacher_name'];
+$teacher_department = $_SESSION['teacher_department'];
 $course = $_GET['course'];
 $year = $_GET['year'];
 
@@ -38,40 +40,71 @@ $conn->close();
 <html>
 <head>
     <title>Select Students for <?php echo strtoupper($course) . " " . $year . "rd Year"; ?> Assignment</title>
+    <style>
+        .error-message {
+            color: red;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+    </style>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/flatpickr/4.6.13/flatpickr.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/flatpickr/4.6.13/flatpickr.min.js"></script>
 </head>
 <body>
     <h2>Select Students for <?php echo strtoupper($course) . " " . $year . "rd Year"; ?> Assignment</h2>
 
-    <form method="post" action="write_assignment_question.php">
-        <input type="hidden" name="course" value="<?php echo $course; ?>">
-        <input type="hidden" name="year" value="<?php echo $year; ?>">
+    <?php
+    if (strtoupper($teacher_department) != strtoupper($course)) {
+        echo "<p style='color: red;'>You are not authorized to select students from the " . strtoupper($course) . " department.</p>";
+    } else {
+        ?>
+        <form method="post" action="write_assignment_question.php">
+            <input type="hidden" name="course" value="<?php echo $course; ?>">
+            <input type="hidden" name="year" value="<?php echo $year; ?>">
 
-        <?php if (empty($students)): ?>
-            <p>No students found for <?php echo strtoupper($course) . " " . $year . "rd Year"; ?>.</p>
-        <?php else: ?>
-            <table>
-                <thead>
-                    <tr>
-                        <th>Select</th>
-                        <th>Student Name</th>
-                        <th>Student ID</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <?php foreach ($students as $student): ?>
+            <?php if (empty($students)) : ?>
+                <p>No students found for <?php echo strtoupper($course) . " " . $year . "rd Year"; ?>.</p>
+            <?php else : ?>
+                <table>
+                    <thead>
                         <tr>
-                            <td><input type="checkbox" name="selected_students[]" value="<?php echo $student['student_id']; ?>"></td>
-                            <td><?php echo $student['student_name']; ?></td>
-                            <td><?php echo $student['student_id']; ?></td>
+                            <th>Select</th>
+                            <th>Student Name</th>
+                            <th>Student ID</th>
                         </tr>
-                    <?php endforeach; ?>
-                </tbody>
-            </table>
-            <br>
-            <label for="assignment_question">Assignment Question:</label><br>
-            <textarea name="assignment_question" id="assignment_question" rows="5" cols="80" required></textarea><br><br>
-            <button type="submit">Send Assignment to Selected Students</button>
-        <?php endif; ?>
-    </form>
+                    </thead>
+                    <tbody>
+                        <?php foreach ($students as $student) : ?>
+                            <tr>
+                                <td><input type="checkbox" name="selected_students[]" value="<?php echo $student['student_id']; ?>"></td>
+                                <td><?php echo $student['student_name']; ?></td>
+                                <td><?php echo $student['student_id']; ?></td>
+                            </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+                <br>
+                <label for="assignment_question">Assignment Question:</label><br>
+                <textarea name="assignment_question" id="assignment_question" rows="5" cols="80" required></textarea><br><br>
+
+                <label for="deadline">Deadline:</label>
+                <input type="text" id="deadline" name="deadline"  required><br><br>
+
+                <label for="marks">Marks:</label>
+                <input type="number" id="marks" name="marks" required><br><br>
+
+                <button type="submit">Send Assignment to Selected Students</button>
+            <?php endif; ?>
+        </form>
+        <script>
+             flatpickr("#deadline", {
+                enableTime: true,
+                dateFormat: "Y-m-d H:i",
+             });
+        </script>
+        <?php
+    }
+    ?>
 </body>
 </html>
+
