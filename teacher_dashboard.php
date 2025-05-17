@@ -1,5 +1,4 @@
 <?php
-// Filename: teacher_dashboard.php
 session_start();
 
 if (!isset($_SESSION['teacher_logged_in']) || $_SESSION['teacher_logged_in'] !== true) {
@@ -16,7 +15,6 @@ $teacher_name = $_SESSION['teacher_name'];
 <head>
     <title>Teacher Dashboard</title>
     <style>
-        /* Existing CSS for Assignment Generation (DO NOT MODIFY) */
         .navbar {
             background-color: #f0f0f0;
             overflow: hidden;
@@ -111,7 +109,6 @@ $teacher_name = $_SESSION['teacher_name'];
             background-color: #ddd;
         }
 
-        /* Style for the View History link (MODIFIED) */
         .history-link {
             float: left;
             display: block;
@@ -175,7 +172,7 @@ $teacher_name = $_SESSION['teacher_name'];
                 </div>
             </div>
         </div>
-        <a href="received_assignments.php">Received Assignments</a>
+        <a href="teacher_received_assignment.php">Received Assignments</a>
         <a href="teacher_assignment_history.php" class="history-link">View History</a>
     </div>
 
