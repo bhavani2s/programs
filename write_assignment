@@ -1,7 +1,22 @@
 <?php
 session_start();
 
+// Error reporting (for debugging)
+ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
+error_reporting(E_ALL);
+
+// Log function
+function logMessage($message) {
+    $logFile = 'submission_log.txt';
+    $currentTime = date('Y-m-d H:i:s');
+    file_put_contents($logFile, "[$currentTime] $message\n", FILE_APPEND);
+}
+
+logMessage("--- Start of Request ---");
+
 if (!isset($_SESSION['student_logged_in']) || $_SESSION['student_logged_in'] !== true) {
+    logMessage("Student not logged in. Redirecting to student_login.php");
     header("Location: student_login.php");
     exit;
 }
@@ -9,30 +24,73 @@ if (!isset($_SESSION['student_logged_in']) || $_SESSION['student_logged_in'] !==
 $student_id = $_SESSION['student_id'];
 $student_name = $_SESSION['student_name'];
 
-// Fetch assignment details including due date and time
+logMessage("Student ID: $student_id, Student Name: $student_name");
+
+// Fetch assignment details including deadline and teacher_id
 $assignmentId = isset($_GET['assignment_id']) ? $_GET['assignment_id'] : (isset($_SESSION['assignmentId']) ? $_SESSION['assignmentId'] : 0);
-$_SESSION['assignmentId'] = $assignmentId; //store assignment id
+$_SESSION['assignmentId'] = $assignmentId;
+
+logMessage("Assignment ID: $assignmentId");
 
 // Assuming you have a database connection
 $conn = mysqli_connect("localhost", "root", "", "sai");
 if (!$conn) {
-    die("Connection failed: " . mysqli_connect_error());
+    $error = "Connection failed: " . mysqli_connect_error();
+    logMessage($error);
+    die($error);
 }
 
-$sql = "SELECT deadline FROM assignments WHERE assignment_id = $assignmentId";
+$sql = "SELECT deadline, teacher_id FROM assignments WHERE assignment_id = $assignmentId";
 $result = mysqli_query($conn, $sql);
+
+$deadline = '';
+$teacherIdForAssignment = '';
 
 if ($result && mysqli_num_rows($result) > 0) {
     $row = mysqli_fetch_assoc($result);
     $deadline = $row['deadline'];
+    $teacherIdForAssignment = $row['teacher_id']; // Fetch teacher_id
     $deadlineTimestamp = strtotime($deadline);
     $now = time();
     $isDeadlinePassed = ($now > $deadlineTimestamp);
+
+    logMessage("Deadline: $deadline, Teacher ID: $teacherIdForAssignment, Deadline Passed: " . ($isDeadlinePassed ? 'Yes' : 'No'));
 } else {
-    $isDeadlinePassed = true; // Default to true to prevent submission if assignment details are not found.
-    echo "Error: Could not retrieve assignment details or assignment does not exist.";
+    $isDeadlinePassed = true;
+    $error = "Error: Could not retrieve assignment details or assignment does not exist.";
+    logMessage($error);
+    echo $error;
 }
+
+// Handle assignment submission
+if (isset($_POST['submit_assignment'])) {
+    $submittedContent = isset($_POST['hidden-assignment-text']) ? $_POST['hidden-assignment-text'] : ''; // Ensure it's set
+
+    // Strip HTML tags to get only plain text
+    $submittedContent = strip_tags($submittedContent);
+
+    logMessage("Submit button clicked. Submitted Content (raw): " . substr($submittedContent, 0, 200) . "..."); // Log first 200 chars
+
+    // Perform database insertion to save the assignment WITH teacher_id
+    $insertSql = "INSERT INTO submitted_assignments (assignment_id, student_id, teacher_id, submission_content, submission_time, submission_date)
+                      VALUES ($assignmentId, '$student_id', '$teacherIdForAssignment', '" . mysqli_real_escape_string($conn, $submittedContent) . "', NOW(), CURDATE())";
+
+    logMessage("Insert SQL: $insertSql");
+
+    if (mysqli_query($conn, $insertSql)) {
+        logMessage("Assignment submitted successfully!");
+        echo "<script>alert('Assignment submitted successfully!'); window.location.href = 'student_dashboard.php?submission_success=1';</script>";
+        exit;
+    } else {
+        $error = "Error submitting assignment: " . mysqli_error($conn);
+        logMessage($error);
+        echo "<script>alert('Error submitting assignment: " . mysqli_error($conn) . "');</script>";
+    }
+}
+
 mysqli_close($conn);
+
+logMessage("--- End of Request ---");
 ?>
 
 <!DOCTYPE html>
@@ -40,7 +98,8 @@ mysqli_close($conn);
 <head>
     <title>Write Assignment</title>
     <style>
-        body {
+        /* ... (Your existing CSS styles - keep them) ... */
+          body {
             overflow-y: scroll;
             margin: 0;
             padding: 0;
@@ -77,7 +136,8 @@ mysqli_close($conn);
         }
 
         .toolbar {
-            display: none; /* Initially hidden */
+            display: none;
+            /* Initially hidden */
             margin-bottom: 10px;
             gap: 5px;
         }
@@ -106,8 +166,9 @@ mysqli_close($conn);
             background-color: #f9f9f9;
             min-width: 180px;
             max-height: 200px;
-            overflow-y: auto; /* Enable vertical scrolling */
-            box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.2);
+            overflow-y: auto;
+            /* Enable vertical scrolling */
+            box-shadow: 0px 8px 16px 0px rgba(0, 0, 0, 0.2);
             z-index: 1;
             border-radius: 3px;
             border: 1px solid #ccc;
@@ -139,7 +200,8 @@ mysqli_close($conn);
             border-radius: 5px;
             font-size: 16px;
             line-height: 1.5;
-            position: relative; /* For positioning delete button */
+            position: relative;
+            /* For positioning delete button */
         }
 
         #next-button {
@@ -167,23 +229,32 @@ mysqli_close($conn);
         }
 
         .modal {
-            display: none; /* Hidden by default */
-            position: fixed; /* Stay in place */
-            z-index: 1; /* Sit on top */
+            display: none;
+            /* Hidden by default */
+            position: fixed;
+            /* Stay in place */
+            z-index: 1;
+            /* Sit on top */
             left: 0;
             top: 0;
-            width: 100%; /* Full width */
-            height: 100%; /* Full height */
-            overflow: auto; /* Enable scroll if needed */
-            background-color: rgba(0,0,0,0.4); /* Black w/ opacity */
+            width: 100%;
+            /* Full width */
+            height: 100%;
+            /* Full height */
+            overflow: auto;
+            /* Enable scroll if needed */
+            background-color: rgba(0, 0, 0, 0.4);
+            /* Black w/ opacity */
         }
 
         .modal-content {
             background-color: #fefefe;
-            margin: 15% auto; /* 15% from the top and centered */
+            margin: 15% auto;
+            /* 15% from the top and centered */
             padding: 20px;
             border: 1px solid #888;
-            width: 30%; /* Could be more or less, depending on screen size */
+            width: 30%;
+            /* Could be more or less, depending on screen size */
             border-radius: 5px;
         }
 
@@ -243,7 +314,8 @@ mysqli_close($conn);
 
         .table-controls {
             position: absolute;
-            top: -30px; /* Adjust as needed */
+            top: -30px;
+            /* Adjust as needed */
             left: 10px;
         }
 
@@ -267,23 +339,30 @@ mysqli_close($conn);
             border-collapse: collapse;
             border: 1px solid black;
             margin-bottom: 10px;
-            table-layout: fixed; /* Prevent content from overflowing */
+            table-layout: fixed;
+            /* Prevent content from overflowing */
         }
 
-        .custom-table td, .custom-table th {
+        .custom-table td,
+        .custom-table th {
             border: 1px solid black;
             padding: 8px;
-            word-break: break-word; /* Break long words */
+            word-break: break-word;
+            /* Break long words */
         }
+
         .modal-body label {
-            display: inline-block; /* Display labels inline with inputs */
-            width: 60px; /* Adjust width as needed */
+            display: inline-block;
+            /* Display labels inline with inputs */
+            width: 60px;
+            /* Adjust width as needed */
             margin-right: 10px;
             font-size: 14px;
         }
 
         .modal-body input[type=number] {
-            width: 50px; /* Make input fields smaller */
+            width: 50px;
+            /* Make input fields smaller */
             padding: 5px;
             margin-bottom: 10px;
             border: 1px solid #ccc;
@@ -296,17 +375,20 @@ mysqli_close($conn);
             margin: 15% auto;
             padding: 20px;
             border: 1px solid #888;
-            width: 300px; /* Set a fixed width for the modal */
+            width: 300px;
+            /* Set a fixed width for the modal */
             border-radius: 5px;
         }
 
         .modal-header h2 {
-            font-size: 18px; /* Smaller heading */
+            font-size: 18px;
+            /* Smaller heading */
             margin-bottom: 5px;
         }
 
         .modal-footer button {
-            padding: 8px 15px; /* Smaller button */
+            padding: 8px 15px;
+            /* Smaller button */
             background-color: #007bff;
             color: white;
             border: none;
@@ -314,101 +396,111 @@ mysqli_close($conn);
             cursor: pointer;
             font-size: 14px;
         }
+
         .editor-container {
-    display: flex;
-    flex-direction: column;
-    width: 80%;
-    margin: 20px auto;
-    border: 1px solid #ccc;
-    padding: 10px;
-    border-radius: 5px;
-    position: relative;
-    max-height: 80vh; /* Or any other suitable maximum height */
-}
+            display: flex;
+            flex-direction: column;
+            width: 80%;
+            margin: 20px auto;
+            border: 1px solid #ccc;
+            padding: 10px;
+            border-radius: 5px;
+            position: relative;
+            max-height: 80vh;
+            /* Or any other suitable maximum height */
+        }
 
-.text-editor {
-    flex: 1; /* Allows it to grow and take available vertical space */
-    border: 1px solid #ddd;
-    padding: 10px;
-    overflow-y: scroll; /* Always show the vertical scrollbar */
-    resize: none;
-    min-height: 200px;
-    border-radius: 5px;
-    font-size: 16px;
-    line-height: 1.5;
-    position: relative; /* For positioning delete button */
-}
-#write-menu {
-      position: relative;
-    }
+        .text-editor {
+            flex: 1;
+            /* Allows it to grow and take available vertical space */
+            border: 1px solid #ddd;
+            padding: 10px;
+            overflow-y: scroll;
+            /* Always show the vertical scrollbar */
+            resize: none;
+            min-height: 200px;
+            border-radius: 5px;
+            font-size: 16px;
+            line-height: 1.5;
+            position: relative;
+            /* For positioning delete button */
+        }
 
-    #pen-dropdown-content {
-      display: none;
-      position: absolute;
-      background-color: #f9f9f9;
-      min-width: 100px;
-      box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.2);
-      z-index: 1;
-      border-radius: 3px;
-      border: 1px solid #ccc;
-    }
+        #write-menu {
+            position: relative;
+        }
 
-    #pen-dropdown-content a {
-      color: black;
-      padding: 8px 12px;
-      text-decoration: none;
-      display: block;
-      font-size: 14px;
-      text-align: center;
-    }
+        #pen-dropdown-content {
+            display: none;
+            position: absolute;
+            background-color: #f9f9f9;
+            min-width: 100px;
+            box-shadow: 0px 8px 16px 0px rgba(0, 0, 0, 0.2);
+            z-index: 1;
+            border-radius: 3px;
+            border: 1px solid #ccc;
+        }
 
-    #pen-dropdown-content a:hover {
-      background-color: #ddd;
-    }
+        #pen-dropdown-content a {
+            color: black;
+            padding: 8px 12px;
+            text-decoration: none;
+            display: block;
+            font-size: 14px;
+            text-align: center;
+        }
 
-    #write-menu:hover #pen-dropdown-content {
-      display: block;
-    }
+        #pen-dropdown-content a:hover {
+            background-color: #ddd;
+        }
 
-    #drawing-overlay {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      pointer-events: none; 
-    }
+        #write-menu:hover #pen-dropdown-content {
+            display: block;
+        }
+
+        #drawing-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none; /* Initially, don't allow pointer events */
+        }
 
 
-/* Optional: Style the scrollbar (for Chrome, Safari, Edge) */
-.text-editor::-webkit-scrollbar {
-    width: 8px; /* Adjust width as needed */
-}
+        /* Optional: Style the scrollbar (for Chrome, Safari, Edge) */
+        .text-editor::-webkit-scrollbar {
+            width: 8px;
+            /* Adjust width as needed */
+        }
 
-.text-editor::-webkit-scrollbar-track {
-    background: #f1f1f1; /* Scrollbar track color */
-    border-radius: 4px;
-}
+        .text-editor::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            /* Scrollbar track color */
+            border-radius: 4px;
+        }
 
-.text-editor::-webkit-scrollbar-thumb {
-    background: #888; /* Scrollbar handle color */
-    border-radius: 4px;
-}
+        .text-editor::-webkit-scrollbar-thumb {
+            background: #888;
+            /* Scrollbar handle color */
+            border-radius: 4px;
+        }
 
-/* Optional: Style the scrollbar (for Firefox) */
-.text-editor {
-    scrollbar-width: thin; /* other values: auto, none */
-    scrollbar-color: #888 #f1f1f1; /* thumb and track color */
-}
-        
-
+        /* Optional: Style the scrollbar (for Firefox) */
+        .text-editor {
+            scrollbar-width: thin;
+            /* other values: auto, none */
+            scrollbar-color: #888 #f1f1f1;
+            /* thumb and track color */
+        }
     </style>
 </head>
+
 <body>
     <div class="editor-container">
         <div class="menu-bar">
             <button onclick="showToolbar('home-toolbar')">Home</button>
-            <button onclick="showToolbar('insert-toolbar')">Insert</button>
+            <button onclick="showToolbar('insert-menu')">Insert</button>
             <button onclick="showToolbar('design-toolbar')">Design</button>
         </div>
 
@@ -416,6 +508,15 @@ mysqli_close($conn);
             <div class="dropdown">
                 <button>Text Size</button>
                 <div class="dropdown-content">
+                    <a href="#" onclick="formatText('fontSize', '2')">2</a>
+                    <a href="#" onclick="formatText('fontSize', '4')">4</a>
+                    <a href="#" onclick="formatText('fontSize', '6')">6</a>
+                    <a href="#" onclick="formatText('fontSize', '8')">8</a>
+                </div>
+            </div>
+            <div class="dropdown">
+                <button>Font Style</button>
+                <div class="dropdown-content" styleass="dropdown-content" style="overflow-y: auto; max-height: 200px;">
                     <a href="#" onclick="formatText('fontSize', '2')">2</a>
                     <a href="#" onclick="formatText('fontSize', '4')">4</a>
                     <a href="#" onclick="formatText('fontSize', '6')">6</a>
@@ -442,449 +543,456 @@ mysqli_close($conn);
                     <a href="#" onclick="formatText('fontName', 'Bahnschrift SemiBold Condensed')">Bahnschrift SemiBold Condensed</a>
                     <a href="#" onclick="formatText('fontName', 'Bahnschrift SemiBold SemiCondensed')">Bahnschrift SemiBold SemiCondensed</a>
                     <a href="#" onclick="formatText('fontName', 'Bahnschrift SemiCondensed')">Bahnschrift SemiCondensed</a>
-                    <a href="#" onclick="formatText('fontName', 'Bahnschrift SemiLight')">Bahnschrift SemiLight</a>
-                    <a href="#" onclick="formatText('fontName', 'Bahnschrift SemiLight Condensed')">Bahnschrift SemiLight Condensed</a>
-                    <a href="#" onclick="formatText('fontName', 'Blackadder ITC')">Blackadder ITC</a>
+                    <a href="#" onclick="formatText('Bahnschrift SemiLight')">Bahnschrift SemiLight</a>
+                    <a href="#" onclick="formatText('Bahnschrift SemiLight Condensed')">Bahnschrift SemiLight Condensed</a>
+                    <a href="#" onclick="formatText('Blackadder ITC')">Blackadder ITC</a>
                     <a href="#" onclick="formatText('fontName', 'Calibri')">Calibri</a>
                     <a href="#" onclick="formatText('fontName', 'Cambria')">Cambria</a>
                     <a href="#" onclick="formatText('fontName', 'Candara')">Candara</a>
                     <a href="#" onclick="formatText('fontName', 'Century Gothic')">Century Gothic</a>
                     <a href="#" onclick="formatText('fontName', 'Comic Sans MS')">Comic Sans MS</a>
+                    <a href="#" onclick="formatText('fontName', 'Consolas')">Consolas</a>
                     <a href="#" onclick="formatText('fontName', 'Constantia')">Constantia</a>
                     <a href="#" onclick="formatText('fontName', 'Corbel')">Corbel</a>
-                    <a href="#" onclick="formatText('fontName', 'Elephant')">Elephant</a>
+                    <a href="#" onclick="formatText('fontName', 'Courier New')">Courier New</a>
+                    <a href="#" onclick="formatText('fontName', 'Ebrima')">Ebrima</a>
                     <a href="#" onclick="formatText('fontName', 'Franklin Gothic Medium')">Franklin Gothic Medium</a>
-                    <a href="#" onclick="formatText('fontName', 'Garamond')">Garamond</a>
+                    <a href="#" onclick="formatText('fontName', 'Gabriola')">Gabriola</a>
+                    <a href="#" onclick="formatText('fontName', 'Gadugi')">Gadugi</a>
                     <a href="#" onclick="formatText('fontName', 'Georgia')">Georgia</a>
-                    <a href="#" onclick="formatText('fontName', 'Gill Sans MT')">Gill Sans MT</a>
+                    <a href="#" onclick="formatText('fontName', 'Impact')">Impact</a>
+                    <a href="#" onclick="formatText('fontName', 'Ink Free')">Ink Free</a>
+                    <a href="#" onclick="formatText('fontName', 'Javanese Text')">Javanese Text</a>
+                    <a href="#" onclick="formatText('fontName', 'Leelawadee UI')">Leelawadee UI</a>
+                    <a href="#" onclick="formatText('fontName', 'Lucida Console')">Lucida Console</a>
                     <a href="#" onclick="formatText('fontName', 'Lucida Sans Unicode')">Lucida Sans Unicode</a>
-                    <a href="#" onclick="formatText('fontName', 'Palatino Linotype')">Palatino Linotype</a>
-                    <a href="#" onclick="formatText('fontName', 'Segoe UI')">Segoe UI</a>
-                    <a href="#" onclick="formatText('fontName', 'Tahoma')">Tahoma</a>
-                    <a href="#" onclick="formatText('fontName', 'Times New Roman')">Times New Roman</a>
-                    <a href="#" onclick="formatText('fontName', 'Trebuchet MS')">Trebuchet MS</a>
-                    <a href="#" onclick="formatText('fontName', 'Verdana')">Verdana</a>
+                    <a href="#" onclick="formatText('fontName', 'Malgun Gothic')">Malgun Gothic</a>
+                    <a href="#" onclick="formatText('Microsoft Himalaya')">Microsoft Himalaya</a>
+                    <a href="#" onclick="formatText('Microsoft JhengHei')">Microsoft JhengHei</a>
+                    <a href="#" onclick="formatText('Microsoft New Tai Lue')">Microsoft New Tai Lue</a>
+                    <a href="#" onclick="formatText('Microsoft Sans Serif')">Microsoft Sans Serif</a>
+                    <a href="#" onclick="formatText('Microsoft Tai Le')">Microsoft Tai Le</a>
+                    <a href="#" onclick="formatText('Microsoft YaHei')">Microsoft YaHei</a>
+                    <a href="#" onclick="formatText('MingLiU')">MingLiU</a>
+                    <a href="#" onclick="formatText('Mongolian Baiti')">Mongolian Baiti</a>
+                    <a href="#" onclick="formatText('MS Gothic')">MS Gothic</a>
+                    <a href="#" onclick="formatText('MV Boli')">MV Boli</a>
+                    <a href="#" onclick="formatText('Myanmar Text')">Myanmar Text</a>
+                    <a href="#" onclick="formatText('Nirmala UI')">Nirmala UI</a>
+                    <a href="#" onclick="formatText('Palatino Linotype')">Palatino Linotype</a>
+                    <a href="#" onclick="formatText('Segoe UI')">Segoe UI</a>
+                    <a href="#" onclick="formatText('SimSun')">SimSun</a>
+                    <a href="#" onclick="formatText('Sitka')">Sitka</a>
+                    <a href="#" onclick="formatText('Sylfaen')">Sylfaen</a>
+                    <a href="#" onclick="formatText('Symbol')">Symbol</a>
+                    <a href="#" onclick="formatText('Tahoma')">Tahoma</a>
+                    <a href="#" onclick="formatText('Times New Roman')">Times New Roman</a>
+                    <a href="#" onclick="formatText('Trebuchet MS')">Trebuchet MS</a>
+                    <a href="#" onclick="formatText('Verdana')">Verdana</a>
+                    <a href="#" onclick="formatText('Webdings')">Webdings</a>
+                    <a href="#" onclick="formatText('Wingdings')">Wingdings</a>
                 </div>
             </div>
             <button onclick="formatText('bold')"><b>B</b></button>
             <button onclick="formatText('italic')"><i>I</i></button>
             <button onclick="formatText('underline')"><u>U</u></button>
+            <button onclick="formatText('justifyLeft')">Left</button>
+            <button onclick="formatText('justifyCenter')">Center</button>
+            <button onclick="formatText('justifyRight')">Right</button>
+            <button onclick="formatText('insertUnorderedList')">UL</button>
+            <button onclick="formatText('insertOrderedList')">OL</button>
         </div>
 
-        <div id="insert-toolbar" class="toolbar">
+        <div id="insert-menu" class="toolbar" style="display: none;">
             <button id="insert-table-button">Table</button>
-            <button id="write-button">Write</button>
+            <button id="enable-drawing-button">Write to Draw</button>
+            <button id="attach-file-button">Attach File</button>
             <button id="undo-button">Undo</button>
             <button id="redo-button">Redo</button>
-            <button id="insert-upload-button">+</button>
         </div>
-        
-        <div id="insert-menu" class="toolbar">
-      <button id="insert-table-button">Table</button>
-      <div id="table-picker"></div>
-      <div id="write-menu" class="dropdown">
 
-        <button>Write</button>
-        <div id="pen-dropdown-content" class="dropdown-content">
-          <a href="#" onclick="enableDrawing('black', 2)">Black Pen</a>
-          <a href="#" onclick="enableDrawing('red', 2)">Red Pen</a>
-          <a href="#" onclick="enableDrawing('blue', 2)">Blue Pen</a>
-          <a href="#" onclick="enableDrawing('green', 2)">Green Pen</a>
-          <a href="#" onclick="disableDrawing()">Stop Writing</a>
-        </div>
-      </div>
-      <button onclick="undoDrawing()">Undo</button>
-      <button onclick="redoDrawing()">Redo</button>
-      <button id="insert-upload-button">+</button>
-    </div>
-
-        <div id="design-toolbar" class="toolbar">
-            <button>Design Placeholder</button>
+        <div id="design-toolbar" class="toolbar" style="display: none;">
+            <div class="dropdown">
+                <button>Theme</button>
+                <div class="dropdown-content">
+                    <a href="#" onclick="applyTheme('light')">Light</a>
+                    <a href="#" onclick="applyTheme('dark')">Dark</a>
+                </div>
+            </div>
         </div>
 
         <div class="text-editor" id="assignment-text" contenteditable="true">
-            <p>Write your assignment here...</p>
-            <svg id="drawing-overlay"></svg>
+            Start writing your assignment here...
+            <canvas id="drawing-overlay"></canvas>
         </div>
 
-        <?php if (!$isDeadlinePassed): ?>
-            <button id="next-button">Next</button>
-        <?php else: ?>
-            <p class="error-message">Sorry, the deadline for this assignment has passed.</p>
-        <?php endif; ?>
+        <div id="drawing-controls" style="display: none;">
+            <button onclick="setDrawingColor('black')">Black</button>
+            <button onclick="setDrawingColor('red')">Red</button>
+            <button onclick="setDrawingColor('green')">Green</button>
+            <button onclick="setDrawingColor('blue')">Blue</button>
+            <button onclick="setDrawingColor('purple')">Purple</button>
+            <button onclick="setDrawingColor('orange')">Orange</button>
+            <button onclick="setDrawingColor('yellow')">Yellow</button>
+            <button onclick="disableDrawing()">Disable Drawing</button>
+            <button onclick="undoDrawing()">Undo</button>
+            <button onclick="redoDrawing()">Redo</button>
+        </div>
+
+        <form method="post" action="" id="assignment-form">
+            <textarea name="hidden-assignment-text" id="hidden-assignment-text" style="display: none;"></textarea>
+            <button id="next-button" type="submit" name="submit_assignment" <?php if ($isDeadlinePassed) echo 'disabled'; ?>>
+                <?php if ($isDeadlinePassed): ?>
+                    Deadline Passed
+                <?php else: ?>
+                    Submit Assignment
+                <?php endif; ?>
+            </button>
+
+            <?php if ($isDeadlinePassed): ?>
+                <p class="error-message">The deadline for this assignment has passed. You cannot submit it anymore.</p>
+            <?php endif; ?>
+        </form>
     </div>
 
     <div id="table-modal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
                 <h2>Insert Table</h2>
-                <span class="close-button">&times;</span>
+                <span class="close-button" onclick="closeTableModal()">&times;</span>
             </div>
             <div class="modal-body">
                 <label for="rows">Rows:</label>
-                <input type="number" id="rows" value="3" min="1">
+                <input type="number" id="rows" min="1" value="3">
+                <br>
                 <label for="cols">Columns:</label>
-                <input type="number" id="cols" value="3" min="1">
+                <input type="number" id="cols" min="1" value="3">
             </div>
             <div class="modal-footer">
-                <button id="insert-table-confirm">Insert</button>
+                <button onclick="insertTable()">Insert</button>
             </div>
         </div>
     </div>
 
-    <input type="file" id="file-upload" multiple accept="image/*, application/pdf, application/msword, application/vnd.openxmlformats-officedocument.wordprocessingml.document" style="display: none;">
-
     <script>
-     
         const assignmentText = document.getElementById('assignment-text');
-        const drawingOverlay = document.getElementById('drawing-overlay');
-        let nextButton = document.getElementById('next-button');
+        const hiddenAssignmentText = document.getElementById('hidden-assignment-text');
         const homeToolbar = document.getElementById('home-toolbar');
-        const insertToolbar = document.getElementById('insert-toolbar');
+        const insertMenu = document.getElementById('insert-menu');
         const designToolbar = document.getElementById('design-toolbar');
+        const tableModal = document.getElementById('table-modal');
         const insertTableButton = document.getElementById('insert-table-button');
-        const writeButton = document.getElementById('write-button');
+        const drawingOverlay = document.getElementById('drawing-overlay');
+        const ctx = drawingOverlay.getContext('2d');
         const undoButton = document.getElementById('undo-button');
         const redoButton = document.getElementById('redo-button');
-        const tableModal = document.getElementById('table-modal');
-        const closeModalButton = document.querySelector('.close-button');
-        const insertTableConfirmButton = document.getElementById('insert-table-confirm');
-        const rowsInput = document.getElementById('rows');
-        const colsInput = document.getElementById('cols');
-        const insertUploadButton = document.getElementById('insert-upload-button');
-        const fileUpload = document.getElementById('file-upload');
+        const enableDrawingButton = document.getElementById('enable-drawing-button');
+        const drawingControls = document.getElementById('drawing-controls');
+        const assignmentForm = document.getElementById('assignment-form');
+
+        let isDrawingEnabled = false;
         let isDrawing = false;
-        let currentColor = 'black';
-        let currentLineWidth = 2;
-        let currentPath = [];
-        const drawnPaths = [];
-        let undoHistory = [];
-        let redoHistory = [];
-        let isMouseOverDrawingArea = false;
+        let lastX = 0;
+        let lastY = 0;
+        let currentColor = 'black'; // Default drawing color
+        let drawingHistory = [];
+        let historyIndex = -1;
+        const DRAWING_START_DELIMITER = '[DRAWING_DATA_START]';
+        const DRAWING_END_DELIMITER = '[DRAWING_DATA_END]';
+
+        // Initialize canvas size
+        function resizeCanvas() {
+            drawingOverlay.width = assignmentText.offsetWidth;
+            drawingOverlay.height = assignmentText.offsetHeight;
+        }
+
+        resizeCanvas();
+        window.addEventListener('resize', resizeCanvas);
 
         function showToolbar(toolbarId) {
             homeToolbar.style.display = 'none';
-            insertToolbar.style.display = 'none';
+            insertMenu.style.display = 'none';
             designToolbar.style.display = 'none';
-
-            const toolbarToShow = document.getElementById(toolbarId);
-            if (toolbarToShow) {
-                toolbarToShow.style.display = 'flex';
-            }
+            document.getElementById(toolbarId).style.display = 'flex';
         }
-        //#############3
-        function showInsertMenu() {
-      if (homeMenu) homeMenu.style.display = "none";
-      if (insertMenu) insertMenu.style.display = "flex";
-      if (designMenu) designMenu.style.display = "none";
-      if (backgroundColorDropdown) backgroundColorDropdown.style.display = "none";
-      if (textColorDropdown) textColorDropdown.style.display = "none";
-      const tablePicker = document.getElementById('table-picker');
-      if (tablePicker && tablePicker.style.display === 'block') {
-        tablePicker.style.display = 'none';
-      }
-    }
-//######################
+
         function formatText(command, value = null) {
-            assignmentText.focus();
             document.execCommand(command, false, value);
+            assignmentText.focus(); // Keep focus on the editor
         }
-
-        assignmentText.addEventListener('input', function() {
-            localStorage.setItem('assignmentText', assignmentText.innerHTML);
-        });
-
-        const savedText = localStorage.getItem('assignmentText');
-        if (savedText) {
-            assignmentText.innerHTML = savedText;
-        }
-
-        let assignmentId = 0;
-        if (localStorage.getItem('assignmentId')) {
-            assignmentId = localStorage.getItem('assignmentId');
-        } else {
-            const urlParams = new URLSearchParams(window.location.search);
-            assignmentId = urlParams.get('assignment_id');
-            localStorage.setItem('assignmentId', assignmentId);
-        }
-
-        const deadlinePassed = <?php echo json_encode($isDeadlinePassed); ?>;
-
-        window.onload = function() {
-            nextButton = document.getElementById('next-button');
-
-            if (nextButton) {
-                if (!deadlinePassed) {
-                    nextButton.addEventListener('click', function() {
-                        const assignmentContent = assignmentText.innerHTML;
-                        localStorage.setItem('assignmentContent', assignmentContent);
-                        window.location.href = 'select_teacher.php?assignment_id=' + assignmentId;
-                    });
-                } else {
-                    nextButton.style.display = 'none';
-                }
-            }
-
-            // Initially show the Home toolbar AFTER the DOM is fully loaded
-            showToolbar('home-toolbar');
-        };
 
         // Table insertion functionality
         insertTableButton.addEventListener('click', () => {
             tableModal.style.display = 'block';
         });
 
-        closeModalButton.addEventListener('click', () => {
+        function closeTableModal() {
             tableModal.style.display = 'none';
-        });
+        }
 
-        insertTableConfirmButton.addEventListener('click', () => {
-            const rows = parseInt(rowsInput.value);
-            const cols = parseInt(colsInput.value);
-
-            if (rows > 0 && cols > 0) {
-                insertTable(rows, cols);
-                tableModal.style.display = 'none';
-                rowsInput.value = 3;
-                colsInput.value = 3;
-            } else {
-                alert("Please enter valid row and column numbers.");
-            }
-        });
-
-        function insertTable(rows, cols) {
-            console.log("insertTable", rows, cols);
-
-            try {
-                let table = document.createElement('table');
-                table.style.width = "100%";
-                table.style.borderCollapse = "collapse";
-                table.style.border = "1px solid black";
-                table.style.tableLayout = "fixed";
-                table.classList.add('custom-table');
-                table.style.position = 'relative'; // Make table position relative for absolute positioning of delete button
-
-                for (let i = 0; i < rows; i++) {
-                    let row = table.insertRow();
-                    for (let j = 0; j < cols; j++) {
-                        let cell = row.insertCell();
-                        cell.style.border = "1px solid black";
-                        cell.textContent = "";
-                        cell.style.padding = "8px";
-                        cell.style.wordBreak = "break-word";
-                        cell.style.width = `${100 / cols}%`;
-                    }
+        function insertTable() {
+            const rows = document.getElementById('rows').value;
+            const cols = document.getElementById('cols').value;
+            let tableHTML = '<table class="custom-table">';
+            for (let i = 0; i < rows; i++) {
+                tableHTML += '<tr>';
+                for (let j = 0; j < cols; j++) {
+                    tableHTML += '<td></td>';
                 }
-                console.log("Table element:", table);
-                assignmentText.appendChild(table);
+                tableHTML += '</tr>';
+            }
+            tableHTML += '</table>';
+            document.execCommand('insertHTML', false, '<div class="table-container">' + tableHTML + '<div class="table-controls"><button class="delete-table-button" onclick="deleteTable(this)">&#10006;</button></div></div>');
+            closeTableModal();
+            assignmentText.focus();
+        }
 
-                const deleteButton = document.createElement('button');
-                deleteButton.className = 'delete-table-button';
-                deleteButton.innerHTML = '&times;';
-                deleteButton.style.position = 'absolute';
-                deleteButton.style.top = '-10px'; /* Adjust as needed */
-                deleteButton.style.right = '-10px'; /* Adjust as needed */
-                deleteButton.addEventListener('click', function() {
-                    table.parentNode.removeChild(table);
+        function deleteTable(button) {
+            const tableContainer = button.parentNode.parentNode;
+            tableContainer.remove();
+            assignmentText.focus();
+        }
+
+        enableDrawingButton.addEventListener('click', () => {
+            isDrawingEnabled = true;
+            drawingOverlay.style.pointerEvents = 'auto';
+            drawingControls.style.display = 'flex';
+            assignmentText.contentEditable = 'false'; // Disable text editing
+        });
+
+        function setDrawingColor(color) {
+            currentColor = color;
+            ctx.strokeStyle = currentColor;
+            ctx.lineWidth = 2;
+            ctx.lineJoin = 'round';
+            ctx.lineCap = 'round';
+        }
+
+        function disableDrawing() {
+            isDrawingEnabled = false;
+            isDrawing = false;
+            drawingOverlay.style.pointerEvents = 'none';
+            drawingControls.style.display = 'none';
+            assignmentText.contentEditable = 'true'; // Re-enable text editing
+
+            drawingOverlay.removeEventListener('mousedown', startDrawing);
+            drawingOverlay.removeEventListener('mousemove', draw);
+            drawingOverlay.removeEventListener('mouseup', stopDrawing);
+            drawingOverlay.removeEventListener('mouseout', stopDrawing);
+        }
+
+        function clearDrawing() {
+            ctx.clearRect(0, 0, drawingOverlay.width, drawingOverlay.height);
+            drawingHistory = [];
+            historyIndex = -1;
+        }
+
+        function startDrawing(e) {
+            if (!isDrawingEnabled) return;
+            isDrawing = true;
+            lastX = e.offsetX;
+            lastY = e.offsetY;
+            ctx.beginPath();
+            ctx.moveTo(lastX, lastY);
+
+            drawingOverlay.addEventListener('mousemove', draw);
+            drawingOverlay.addEventListener('mouseup', stopDrawing);
+            drawingOverlay.addEventListener('mouseout', stopDrawing);
+        }
+
+        function draw(e) {
+            if (!isDrawingEnabled || !isDrawing) return;
+            const x = e.offsetX;
+            const y = e.offsetY;
+            ctx.lineTo(x, y);
+            ctx.stroke();
+            lastX = x;
+            lastY = y;
+        }
+
+        function stopDrawing() {
+            if (!isDrawing) return;
+            isDrawing = false;
+            drawingHistory.push(ctx.getImageData(0, 0, drawingOverlay.width, drawingOverlay.height));
+            historyIndex++;
+
+            drawingOverlay.removeEventListener('mousemove', draw);
+            drawingOverlay.removeEventListener('mouseup', stopDrawing);
+            drawingOverlay.removeEventListener('mouseout', stopDrawing);
+        }
+
+        drawingOverlay.addEventListener('mousedown', startDrawing);
+
+
+        function undoDrawing() {
+            if (historyIndex > 0) {
+                historyIndex--;
+                ctx.putImageData(drawingHistory[historyIndex], 0, 0);
+            } else if (historyIndex === 0) {
+                clearDrawing();
+            }
+        }
+
+        function redoDrawing() {
+            if (historyIndex < drawingHistory.length - 1) {
+                historyIndex++;
+                ctx.putImageData(drawingHistory[historyIndex], 0, 0);
+            }
+        }
+
+        function applyTheme(theme) {
+            if (theme === 'dark') {
+                document.body.style.backgroundColor = '#333';
+                document.body.style.color = '#f0f0f0';
+                const textEditor = document.querySelector('.text-editor');
+                if (textEditor) {
+                    textEditor.style.backgroundColor = '#444';
+                    textEditor.style.color = '#f0f0f0';
+                    textEditor.style.borderColor = '#666';
+                }const menuBarButtons = document.querySelectorAll('.menu-bar button');
+                menuBarButtons.forEach(button => {
+                    button.style.backgroundColor = '#555';
+                    button.style.color = '#f0f0f0';
                 });
-                table.appendChild(deleteButton); // Append delete button to the table itself
-
-                if (assignmentText.querySelector('table')) {
-                    console.log("Table inserted successfully.");
-                } else {
-                    console.error("Table insertion failed: Table element not found.");
+                const toolBarButtons = document.querySelectorAll('.toolbar button, .dropdown > button');
+                toolBarButtons.forEach(button => {
+                    button.style.backgroundColor = '#555';
+                    button.style.color = '#f0f0f0';
+                });
+                const dropdownContents = document.querySelectorAll('.dropdown-content');
+                dropdownContents.forEach(content => {
+                    content.style.backgroundColor = '#555';
+                    content.style.color = '#f0f0f0';
+                    content.style.borderColor = '#666';
+                });
+                const dropdownLinks = document.querySelectorAll('.dropdown-content a');
+                dropdownLinks.forEach(link => {
+                    link.style.color = '#f0f0f0';
+                });
+                const modalContent = document.querySelector('.modal-content');
+                if (modalContent) {
+                    modalContent.style.backgroundColor = '#444';
+                    modalContent.style.color = '#f0f0f0';
+                    modalContent.style.borderColor = '#666';
                 }
-                disableDrawing();
-            } catch (error) {
-                console.error("Error inserting table:", error);
+                const modalHeader = document.querySelector('.modal-header');
+                if (modalHeader) {
+                    modalHeader.style.borderColor = '#666';
+                }
+                const modalBodyInputs = document.querySelectorAll('.modal-body input');
+                modalBodyInputs.forEach(input => {
+                    input.style.backgroundColor = '#555';
+                    input.style.color = '#f0f0f0';
+                    input.style.borderColor = '#666';
+                });
+                const modalFooterButtons = document.querySelectorAll('.modal-footer button');
+                modalFooterButtons.forEach(button => {
+                    button.style.backgroundColor = '#0056b3';
+                    button.style.color = '#f0f0f0';
+                });
+            } else {
+                document.body.style.backgroundColor = '#fff';
+                document.body.style.color = '#000';
+                const textEditor = document.querySelector('.text-editor');
+                if (textEditor) {
+                    textEditor.style.backgroundColor = '#fff';
+                    textEditor.style.color = '#000';
+                    textEditor.style.borderColor = '#ddd';
+                }
+                const menuBarButtons = document.querySelectorAll('.menu-bar button');
+                menuBarButtons.forEach(button => {
+                    button.style.backgroundColor = '#eee';
+                    button.style.color = '#000';
+                });
+                const toolBarButtons = document.querySelectorAll('.toolbar button, .dropdown > button');
+                toolBarButtons.forEach(button => {
+                    button.style.backgroundColor = '#eee';
+                    button.style.color = '#000';
+                });
+                const dropdownContents = document.querySelectorAll('.dropdown-content');
+                dropdownContents.forEach(content => {
+                    content.style.backgroundColor = '#f9f9f9';
+                    content.style.color = '#000';
+                    content.style.borderColor = '#ccc';
+                });
+                const dropdownLinks = document.querySelectorAll('.dropdown-content a');
+                dropdownLinks.forEach(link => {
+                    link.style.color = '#000';
+                });
+                const modalContent = document.querySelector('.modal-content');
+                if (modalContent) {
+                    modalContent.style.backgroundColor = '#fefefe';
+                    modalContent.style.color = '#000';
+                    modalContent.style.borderColor = '#888';
+                }
+                const modalHeader = document.querySelector('.modal-header');
+                if (modalHeader) {
+                    modalHeader.style.borderColor = '#888';
+                }
+                const modalBodyInputs = document.querySelectorAll('.modal-body input');
+                modalBodyInputs.forEach(input => {
+                    input.style.backgroundColor = '#fff';
+                    input.style.color = '#000';
+                    input.style.borderColor = '#ccc';
+                });
+                const modalFooterButtons = document.querySelectorAll('.modal-footer button');
+                modalFooterButtons.forEach(button => {
+                    button.style.backgroundColor = '#007bff';
+                    button.style.color = '#fff';
+                });
             }
         }
-        function enableDrawing(color, lineWidth) {
-      isDrawing = false;
-      currentColor = color;
-      currentLineWidth = lineWidth;
-      assignmentText.style.userSelect = 'none';
-      assignmentText.style.cursor = 'crosshair';
-      currentPath = [];
-      drawingOverlay.innerHTML = '';
-      redrawDrawnPaths();
 
-      assignmentText.addEventListener('mousedown', startDrawing);
-      assignmentText.addEventListener('mousemove', draw);
-      assignmentText.addEventListener('mouseup', stopDrawing);
-      assignmentText.addEventListener('mouseout', stopDrawing);
+        // Attach file functionality (basic placeholder)
+        const attachFileButton = document.getElementById('attach-file-button');
+        attachFileButton.addEventListener('click', () => {
+            document.getElementById('file-input').click();
+        });
 
-      assignmentText.addEventListener('mouseenter', () => isMouseOverDrawingArea = true);
-      assignmentText.addEventListener('mouseleave', () => isMouseOverDrawingArea = false);
-    }
+        // Undo/Redo for drawing
+        undoButton.addEventListener('click', undoDrawing);
+        redoButton.addEventListener('click', redoDrawing);
 
-    function disableDrawing() {
-      isDrawing = false;
-      assignmentText.style.userSelect = 'text';
-      assignmentText.style.cursor = 'text';
-      assignmentText.removeEventListener('mousedown', startDrawing);
-      assignmentText.removeEventListener('mousemove', draw);
-      assignmentText.removeEventListener('mouseup', stopDrawing);
-      assignmentText.removeEventListener('mouseout', stopDrawing);
-      assignmentText.removeEventListener('mouseenter', () => isMouseOverDrawingArea = true);
-      assignmentText.removeEventListener('mouseleave', () => isMouseOverDrawingArea = false);
-      drawingOverlay.innerHTML = '';
-      redrawDrawnPaths();
-    }
-
-    function startDrawing(e) {
-      if (!isDrawing && isMouseOverDrawingArea) {
-        isDrawing = true;
-        const rect = assignmentText.getBoundingClientRect();
-        currentPath.push({ x: e.clientX - rect.left + assignmentText.scrollLeft, y: e.clientY - rect.top + assignmentText.scrollTop });
-      }
-    }
-
-    function draw(e) {
-      if (isDrawing) {
-        const rect = assignmentText.getBoundingClientRect();
-        const x = e.clientX - rect.left + assignmentText.scrollLeft;
-        const y = e.clientY - rect.top + assignmentText.scrollTop;
-        currentPath.push({ x, y });
-        updateSvgOverlay();
-      }
-    }
-
-    function stopDrawing() {
-      if (isDrawing) {
-        isDrawing = false;
-        if (currentPath.length > 1) {
-          drawnPaths.push({ path: [...currentPath], color: currentColor, width: currentLineWidth });
-          undoHistory.push({ action: 'draw', path: [...currentPath], color: currentColor, width: currentLineWidth });
-          redoHistory = [];
-          appendSvgPath(currentPath, currentColor, currentLineWidth);
-          currentPath = [];
-        } else {
-          currentPath = [];
+        // Placeholder for submit assignment
+        function submitAssignment() {
+            const assignmentContent = assignmentText.textContent; // Change to textContent
+            hiddenAssignmentText.value = assignmentContent;
         }
-      }
-    }
 
-    function appendSvgPath(path, strokeColor, strokeWidth) {
-      if (path.length < 2) return;
-
-      const svgPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-      let pathData = `M${path[0].x},${path[0].y}`;
-      for (let i = 1; i < path.length; i++) {
-        pathData += ` L${path[i].x},${path[i].y}`;
-      }
-      svgPath.setAttribute('d', pathData);
-      svgPath.setAttribute('fill', 'none');
-      svgPath.setAttribute('stroke', strokeColor);
-      svgPath.setAttribute('stroke-width', strokeWidth);
-      svgPath.setAttribute('stroke-linecap', 'round');
-      svgPath.setAttribute('stroke-linejoin', 'round');
-      drawingOverlay.appendChild(svgPath);
-    }
-
-    function updateSvgOverlay() {
-      drawingOverlay.innerHTML = '';
-      drawnPaths.forEach(pathData => {
-        appendSvgPath(pathData.path, pathData.color, pathData.width);
-      });
-      if (currentPath.length < 2) return;
-      const svgPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-      let pathData = `M${currentPath[0].x},${currentPath[0].y}`;
-      for (let i = 1; i < currentPath.length; i++) {
-        pathData += ` L${currentPath[i].x},${currentPath[i].y}`;
-      }
-      svgPath.setAttribute('d', pathData);
-      svgPath.setAttribute('fill', 'none');
-      svgPath.setAttribute('stroke', currentColor);
-      svgPath.setAttribute('stroke-width', currentLineWidth);
-      svgPath.setAttribute('stroke-linecap', 'round');
-      svgPath.setAttribute('stroke-linejoin', 'round');
-      drawingOverlay.appendChild(svgPath);
-    }
-
-    function undoDrawing() {
-      if (undoHistory.length > 0) {
-        const lastAction = undoHistory.pop();
-        redoHistory.unshift(lastAction);
-        drawnPaths.pop();
-        redrawDrawnPaths();
-      }
-    }
-
-    function redoDrawing() {
-      if (redoHistory.length > 0) {
-        const nextAction = redoHistory.shift();
-        undoHistory.push(nextAction);
-        drawnPaths.push({ path: nextAction.path, color: nextAction.color, width: nextAction.width });
-        redrawDrawnPaths();
-      }
-    }
-
-    function redrawDrawnPaths() {
-      drawingOverlay.innerHTML = '';
-      drawnPaths.forEach(pathData => {
-        appendSvgPath(pathData.path, pathData.color, pathData.width);
-      });
-    }
-
-    function toggleBackgroundDropdown() {
-      if (backgroundColorDropdown) {
-        backgroundColorDropdown.style.display = backgroundColorDropdown.style.display === 'grid' ? 'none' : 'grid';
-      }
-      if (textColorDropdown && textColorDropdown.style.display === 'grid') {
-        textColorDropdown.style.display = 'none';
-      }
-    }
-
-    function toggleColorDropdown() {
-      if (textColorDropdown) {
-        textColorDropdown.style.display = textColorDropdown.style.display === 'grid' ? 'none' : 'grid';
-      }
-      if (backgroundColorDropdown && backgroundColorDropdown.style.display === 'grid') {
-        backgroundColorDropdown.style.display = 'none';
-      }
-    }
-
-        // File upload functionality
-        insertUploadButton.addEventListener('click', () => {
-            fileUpload.click();
+        // Add event listener to the form to trigger submitAssignment before submission
+        assignmentForm.addEventListener('submit', function(event) {
+            submitAssignment();
         });
 
-        fileUpload.addEventListener('change', (event) => {
-            const files = event.target.files;
-            if (files && files.length > 0) {
-                insertFilesIntoEditor(files);
-            }
-            fileUpload.value = '';
-        });
+        document.getElementById('file-input').addEventListener('change', handleFileSelect);
 
-        function insertFilesIntoEditor(files) {
-            for (const file of files) {
-                const fileType = file.type;
+        function handleFileSelect(event) {
+            const file = event.target.files[0];
+            if (file) {
                 const fileName = file.name;
                 const fileExtension = fileName.split('.').pop().toLowerCase();
 
-                if (fileType.startsWith('image/')) {
+                if (fileExtension === 'png' || fileExtension === 'jpg' || fileExtension === 'jpeg' || fileExtension === 'gif') {
                     const reader = new FileReader();
-                    reader.onload = (e) => {
+                    reader.onload = function(e) {
                         const img = document.createElement('img');
                         img.src = e.target.result;
-                        img.style.maxWidth = '100%';
+                        img.style.maxWidth = '100%'; // Adjust as needed
                         assignmentText.appendChild(img);
+                        assignmentText.appendChild(document.createElement('br'));
                         localStorage.setItem('assignmentText', assignmentText.innerHTML);
-                    };
+                    }
                     reader.readAsDataURL(file);
-                } else if (fileType === 'application/pdf') {
-                    const pdfLink = document.createElement('a');
-                    pdfLink.href = '#';
-                    pdfLink.textContent = `Download PDF: ${fileName}`;
-                    pdfLink.addEventListener('click', (e) => {
-                        e.preventDefault();
-                        alert(`The file "${fileName}" will be downloaded.`);
-                    });
-                    assignmentText.appendChild(pdfLink);
-                    assignmentText.appendChild(document.createElement('br'));
-                    localStorage.setItem('assignmentText', assignmentText.innerHTML);
+                } else if (fileExtension === 'txt') {
+                    const reader = new FileReader();
+                    reader.onload = function(e) {
+                        const pre = document.createElement('pre');
+                        pre.textContent = e.target.result;
+                        assignmentText.appendChild(pre);
+                        assignmentText.appendChild(document.createElement('br'));
+                        localStorage.setItem('assignmentText', assignmentText.innerHTML);
+                    }
+                    reader.readAsText(file);
                 } else if (fileExtension === 'doc' || fileExtension === 'docx') {
                     const docLink = document.createElement('a');
                     docLink.href = '#';
@@ -910,7 +1018,8 @@ mysqli_close($conn);
                 }
             }
         }
-    
+
     </script>
+    <input type="file" id="file-input" style="display: none;">
 </body>
 </html>
