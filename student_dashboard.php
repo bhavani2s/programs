@@ -40,12 +40,16 @@ $year = $_SESSION['year'];
 <body>
     <div class="navbar">
         <a href="student_dashboard.php">Home</a>
-        <a href="#">Write Assignment </a> <a href="received_assignments.php">Received Assignment Questions</a>
+        <a href="write_assignment.php">Write Assignment</a>
+        <a href="received_assignments.php">Received Assignment Questions</a>
+        <a href="received_marks.php">Received Marks</a>
     </div>
 
     <h2>Student Dashboard</h2>
     <p>Welcome, <?php echo $student_name; ?> (Student ID: <?php echo $student_id; ?>)!</p>
-    
+    <p>Course: <?php echo $course; ?></p>
+    <p>Year: <?php echo $year; ?></p>
     <a href="student_logout.php">Logout</a>
 </body>
 </html>
+
