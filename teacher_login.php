@@ -1,5 +1,4 @@
 <?php
-
 session_start();
 
 $servername = "localhost";
@@ -21,7 +20,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
     $teacher_id = mysqli_real_escape_string($conn, $teacher_id);
 
-    $sql = "SELECT teacher_id, teacher_name, password FROM teachers WHERE teacher_id = '$teacher_id'";
+    $sql = "SELECT teacher_id, teacher_name, password, department FROM teachers WHERE teacher_id = '$teacher_id'"; 
     $result = $conn->query($sql);
 
     if ($result->num_rows == 1) {
@@ -29,7 +28,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         if ($password === $row["password"]) {
             $_SESSION['teacher_logged_in'] = true;
             $_SESSION['teacher_id'] = $row["teacher_id"];
-            $_SESSION['teacher_name'] = $row["teacher_name"]; 
+            $_SESSION['teacher_name'] = $row["teacher_name"];
+            $_SESSION['teacher_department'] = $row["department"]; 
             header("Location: teacher_dashboard.php");
             exit;
         } else {
